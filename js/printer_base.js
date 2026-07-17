@@ -7,6 +7,7 @@ class PrinterBase {
 
     async connect(device) {
         this.device = device;
+        log("BLE: connecting to characteristic on " + device.name + "...");
         if (this.device.gatt.connected) {
             log(device.name + " already connected.");
         } else {

@@ -35,18 +35,32 @@ document.addEventListener("DOMContentLoaded", () => {
   const loadSystemFontsBtn = document.getElementById("loadSystemFontsBtn");
   const fontSizeInput = document.getElementById("fontSize");
   const noBluetoothModal = document.getElementById("noBluetoothModal");
+  const bluetoothWarningBanner = document.getElementById("bluetoothWarningBanner");
+  const BLUETOOTH_WARNING_DISMISSED_KEY = "blewebler.bluetoothWarningDismissed";
 
-  // Check for Web Bluetooth support
+  // Check for Web Bluetooth support. If unsupported, always show the small persistent
+  // banner (it's an ongoing condition, not a one-time event) but only auto-pop the full
+  // modal the first time. Once dismissed, the banner stays as a click-to-reopen entry point.
   if (!navigator.bluetooth) {
-    if (noBluetoothModal) {
+    if (bluetoothWarningBanner) {
+      bluetoothWarningBanner.style.display = "flex";
+    }
+    if (noBluetoothModal && localStorage.getItem(BLUETOOTH_WARNING_DISMISSED_KEY) !== "true") {
       noBluetoothModal.classList.add("show");
     }
+  }
+
+  if (bluetoothWarningBanner && noBluetoothModal) {
+    bluetoothWarningBanner.addEventListener("click", () => {
+      noBluetoothModal.classList.add("show");
+    });
   }
 
   const dismissBluetoothModalBtn = document.getElementById("dismissBluetoothModalBtn");
   if (dismissBluetoothModalBtn && noBluetoothModal) {
     dismissBluetoothModalBtn.addEventListener("click", () => {
       noBluetoothModal.classList.remove("show");
+      localStorage.setItem(BLUETOOTH_WARNING_DISMISSED_KEY, "true");
     });
   }
 
@@ -184,6 +198,298 @@ document.addEventListener("DOMContentLoaded", () => {
   const printButton = document.getElementById("printButton");
   if (printButton) {
     printButton.addEventListener("click", printLabel);
+  }
+
+  // Add event listener for the alignment test print button
+  const alignmentTestBtn = document.getElementById("alignmentTestBtn");
+  if (alignmentTestBtn) {
+    alignmentTestBtn.addEventListener("click", printAlignmentTest);
+  }
+
+  // Add event listener for the printer re-sync button
+  const reSyncBtn = document.getElementById("reSyncBtn");
+  if (reSyncBtn) {
+    reSyncBtn.addEventListener("click", reSyncPrinter);
+  }
+
+  // --- Batch Print (CSV mail-merge) Modal Logic ---
+  const batchPrintBtn = document.getElementById("batchPrintBtn");
+  const batchPrintModal = document.getElementById("batchPrintModal");
+  const closeBatchPrintModal = document.getElementById("closeBatchPrintModal");
+  const batchCsvFile = document.getElementById("batchCsvFile");
+  const batchCsvText = document.getElementById("batchCsvText");
+  const batchParseBtn = document.getElementById("batchParseBtn");
+  const batchPreview = document.getElementById("batchPreview");
+  const batchPreviewSummary = document.getElementById("batchPreviewSummary");
+  const batchFieldWarnings = document.getElementById("batchFieldWarnings");
+  const batchPrintConfirmBtn = document.getElementById("batchPrintConfirmBtn");
+
+  let parsedBatchRows = null;
+
+  if (batchPrintBtn && batchPrintModal) {
+    batchPrintBtn.addEventListener("click", () => {
+      batchPreview.style.display = "none";
+      batchPrintConfirmBtn.style.display = "none";
+      parsedBatchRows = null;
+      batchPrintModal.classList.add("show");
+    });
+  }
+
+  if (closeBatchPrintModal && batchPrintModal) {
+    closeBatchPrintModal.addEventListener("click", () => {
+      batchPrintModal.classList.remove("show");
+    });
+    batchPrintModal.addEventListener("click", (e) => {
+      if (e.target === batchPrintModal) {
+        batchPrintModal.classList.remove("show");
+      }
+    });
+  }
+
+  if (batchCsvFile && batchCsvText) {
+    batchCsvFile.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        batchCsvText.value = event.target.result;
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  if (batchParseBtn) {
+    batchParseBtn.addEventListener("click", () => {
+      const csvText = batchCsvText.value.trim();
+      if (!csvText) {
+        alert("Paste CSV data or upload a CSV file first.");
+        return;
+      }
+
+      const { headers, rows } = parseCSV(csvText);
+      if (rows.length === 0) {
+        alert("Couldn't find any data rows. Make sure the first line is a header row.");
+        return;
+      }
+
+      const mergeFields = window.fabricEditor ? window.fabricEditor.getMergeFieldObjects() : [];
+      const mergeFieldNames = [...new Set(mergeFields.map(f => f.mergeField))];
+      const matched = mergeFieldNames.filter(name => headers.includes(name));
+      const unmatchedFields = mergeFieldNames.filter(name => !headers.includes(name));
+      const unusedColumns = headers.filter(h => !mergeFieldNames.includes(h));
+      const imageFieldNames = [...new Set(mergeFields.filter(f => f.isImage).map(f => f.mergeField))];
+
+      parsedBatchRows = rows;
+
+      batchPreviewSummary.textContent = `Found ${rows.length} row(s) with columns: ${headers.join(", ")}.`;
+
+      let warnings = "";
+      if (mergeFieldNames.length === 0) {
+        warnings += "<p>No canvas objects are tagged with a merge field name yet -- select a text, image, or QR object and set one in its controls.</p>";
+      }
+      if (matched.length > 0) {
+        warnings += `<p>Matched fields: ${matched.join(", ")}</p>`;
+      }
+      if (unmatchedFields.length > 0) {
+        warnings += `<p>Canvas merge fields with no matching CSV column (will be left unchanged): ${unmatchedFields.join(", ")}</p>`;
+      }
+      if (unusedColumns.length > 0) {
+        warnings += `<p>CSV columns not used by any canvas object: ${unusedColumns.join(", ")}</p>`;
+      }
+      imageFieldNames.filter(name => headers.includes(name)).forEach(name => {
+        const sample = rows[0] ? rows[0][name] : "";
+        if (sample && !sample.startsWith("data:")) {
+          warnings += `<p>Field "${name}" tags an image object and its values look like URLs, not data: URIs -- the image host must allow cross-origin requests (CORS) or printing that row will fail. A data: URI avoids this entirely.</p>`;
+        }
+      });
+      batchFieldWarnings.innerHTML = warnings;
+
+      batchPreview.style.display = "block";
+      batchPrintConfirmBtn.style.display = matched.length > 0 ? "block" : "none";
+      batchPrintConfirmBtn.textContent = `Print ${rows.length} Label${rows.length === 1 ? "" : "s"}`;
+    });
+  }
+
+  if (batchPrintConfirmBtn) {
+    batchPrintConfirmBtn.addEventListener("click", async () => {
+      if (!parsedBatchRows || parsedBatchRows.length === 0) return;
+      batchPrintModal.classList.remove("show");
+      await printBatch(parsedBatchRows);
+    });
+  }
+
+  // --- Saved Labels (localStorage + file export/import) ---
+  const SAVED_LABELS_KEY = "blewebler.savedLabels";
+
+  function getSavedLabels() {
+    try {
+      const raw = localStorage.getItem(SAVED_LABELS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (err) {
+      console.error("Failed to read saved labels:", err);
+      return [];
+    }
+  }
+
+  function setSavedLabels(list) {
+    try {
+      localStorage.setItem(SAVED_LABELS_KEY, JSON.stringify(list));
+      return true;
+    } catch (err) {
+      console.error("Failed to save labels:", err);
+      alert("Couldn't save. Your browser's local storage is full or unavailable. Try exporting this label to a file instead, and consider deleting some saved labels.");
+      return false;
+    }
+  }
+
+  function downloadLabelFile(entry) {
+    const { id, ...exportable } = entry;
+    const blob = new Blob([JSON.stringify(exportable, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const safeName = (entry.name || "label").replace(/[^a-z0-9_\- ]/gi, "").trim() || "label";
+    a.download = `${safeName}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  const savedLabelsBtn = document.getElementById("savedLabelsBtn");
+  const savedLabelsModal = document.getElementById("savedLabelsModal");
+  const closeSavedLabelsModal = document.getElementById("closeSavedLabelsModal");
+  const saveLabelNameInput = document.getElementById("saveLabelNameInput");
+  const saveLabelBtn = document.getElementById("saveLabelBtn");
+  const importLabelFile = document.getElementById("importLabelFile");
+  const savedLabelsList = document.getElementById("savedLabelsList");
+  const savedLabelsEmpty = document.getElementById("savedLabelsEmpty");
+
+  function renderSavedLabelsList() {
+    if (!savedLabelsList) return;
+    const labels = getSavedLabels();
+    savedLabelsList.innerHTML = "";
+
+    if (savedLabelsEmpty) savedLabelsEmpty.style.display = labels.length === 0 ? "block" : "none";
+
+    labels.slice().reverse().forEach(entry => {
+      const item = document.createElement("div");
+      item.className = "shortcut-item";
+
+      const info = document.createElement("div");
+      info.className = "shortcut-description";
+      const savedDate = entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "";
+      info.innerHTML = `<strong>${entry.name || "Untitled label"}</strong><br><span style="color: var(--text-muted); font-size: 0.8rem;">${entry.canvasWidth || "?"}×${entry.canvasHeight || "?"}px${savedDate ? " · " + savedDate : ""}</span>`;
+
+      const actions = document.createElement("div");
+      actions.className = "shortcut-keys";
+
+      const loadBtn = document.createElement("button");
+      loadBtn.className = "btn btn-secondary btn-sm";
+      loadBtn.textContent = "Load";
+      loadBtn.addEventListener("click", () => {
+        if (!window.fabricEditor) return;
+        window.fabricEditor.importLabelData(entry, (ok) => {
+          if (ok) {
+            savedLabelsModal.classList.remove("show");
+          } else {
+            alert("Couldn't load this label. It may be corrupted.");
+          }
+        });
+      });
+
+      const exportBtn = document.createElement("button");
+      exportBtn.className = "btn btn-secondary btn-sm";
+      exportBtn.textContent = "Export";
+      exportBtn.addEventListener("click", () => downloadLabelFile(entry));
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "btn btn-danger btn-sm";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", () => {
+        if (!confirm(`Delete "${entry.name || "Untitled label"}"? This can't be undone.`)) return;
+        const updated = getSavedLabels().filter(l => l.id !== entry.id);
+        setSavedLabels(updated);
+        renderSavedLabelsList();
+      });
+
+      actions.appendChild(loadBtn);
+      actions.appendChild(exportBtn);
+      actions.appendChild(deleteBtn);
+      item.appendChild(info);
+      item.appendChild(actions);
+      savedLabelsList.appendChild(item);
+    });
+  }
+
+  if (savedLabelsBtn && savedLabelsModal) {
+    savedLabelsBtn.addEventListener("click", () => {
+      renderSavedLabelsList();
+      savedLabelsModal.classList.add("show");
+    });
+  }
+
+  if (closeSavedLabelsModal && savedLabelsModal) {
+    closeSavedLabelsModal.addEventListener("click", () => {
+      savedLabelsModal.classList.remove("show");
+    });
+    savedLabelsModal.addEventListener("click", (e) => {
+      if (e.target === savedLabelsModal) {
+        savedLabelsModal.classList.remove("show");
+      }
+    });
+  }
+
+  if (saveLabelBtn) {
+    saveLabelBtn.addEventListener("click", () => {
+      if (!window.fabricEditor) return;
+      const name = (saveLabelNameInput.value || "").trim() || `Label ${new Date().toLocaleDateString()}`;
+      const data = window.fabricEditor.exportLabelData();
+      const entry = Object.assign({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name, savedAt: new Date().toISOString() }, data);
+      const labels = getSavedLabels();
+      labels.push(entry);
+      if (setSavedLabels(labels)) {
+        saveLabelNameInput.value = "";
+        renderSavedLabelsList();
+      }
+    });
+  }
+
+  if (importLabelFile) {
+    importLabelFile.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        let data;
+        try {
+          data = JSON.parse(event.target.result);
+        } catch (err) {
+          alert("That file isn't valid JSON.");
+          return;
+        }
+        if (!data || !data.fabricJSON) {
+          alert("That file doesn't look like a BleWebler label export.");
+          return;
+        }
+
+        const entry = Object.assign(
+          { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` },
+          data,
+          { name: data.name || file.name.replace(/\.json$/i, ""), savedAt: data.savedAt || new Date().toISOString() }
+        );
+        const labels = getSavedLabels();
+        labels.push(entry);
+        setSavedLabels(labels);
+        renderSavedLabelsList();
+
+        window.fabricEditor.importLabelData(entry, (ok) => {
+          if (ok) savedLabelsModal.classList.remove("show");
+        });
+      };
+      reader.readAsText(file);
+      importLabelFile.value = "";
+    });
   }
 
   // Live Preview Logic (Standard Behavior)

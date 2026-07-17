@@ -1,75 +1,109 @@
+/* Hallmark · genre: modern-minimal · macrostructure: app-workbench (no marketing macrostructure applies)
+ * theme: custom (vibe: "utilitarian technical workshop tool" · paper oklch(98% .006 235) · accent oklch(52% .16 235) cobalt/cool · display: system monospace + body: system sans)
+ * offline constraint: system font stacks only, no external font requests (app is explicitly zero-network)
+ */
+
+/* Universal box-sizing reset: without this, an element's padding/border are added
+   ON TOP of a percentage width instead of being included in it, so e.g. two 50%-width
+   inputs with padding in the same row render wider than their columns and collide.
+   (This is what caused the Top/Left/Right/Bottom padding fields to overlap.) */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 /* =========================================
    Design tokens
    ========================================= */
 :root {
-  /* Colors */
-  --primary: #6366f1;
-  /* Indigo 500 */
-  --primary-hover: #4f46e5;
-  /* Indigo 600 */
-  --secondary: #64748b;
-  /* Slate 500 */
-  --secondary-hover: #475569;
-  /* Slate 600 */
-  --danger: #ef4444;
-  /* Red 500 */
-  --danger-hover: #dc2626;
-  /* Red 600 */
+  /* Colors: cobalt/technical anchor, hue 235, OKLCH */
+  --primary: oklch(52% 0.16 235);
+  /* Cobalt accent */
+  --primary-hover: oklch(45% 0.17 235);
+  --secondary: oklch(48% 0.014 235);
+  /* Muted neutral */
+  --secondary-hover: oklch(38% 0.014 235);
+  --danger: oklch(55% 0.19 25);
+  /* Warm red, deliberately off-hue for destructive actions */
+  --danger-hover: oklch(48% 0.2 25);
 
-  --bg-body: #f8fafc;
-  /* Slate 50 */
-  --bg-card: #ffffff;
-  --bg-input: #f1f5f9;
-  /* Slate 100 */
+  --bg-body: oklch(96% 0.008 235);
+  --bg-card: oklch(98% 0.006 235);
+  --bg-input: oklch(95% 0.008 235);
 
-  --text-main: #0f172a;
-  /* Slate 900 */
-  --text-muted: #64748b;
-  /* Slate 500 */
-  --text-light: #ffffff;
+  --text-main: oklch(20% 0.014 235);
+  --text-muted: oklch(48% 0.014 235);
+  --text-light: oklch(98% 0.004 235);
 
-  --border-color: #e2e8f0;
-  /* Slate 200 */
+  --border-color: oklch(88% 0.01 235);
+  --color-focus: oklch(58% 0.19 235);
+
+  /* Warning (amber): deliberately off the cobalt anchor, a universal warning convention */
+  --color-warning-bg: oklch(93% 0.09 80);
+  --color-warning-border: oklch(75% 0.14 75);
+  --color-warning-icon: oklch(58% 0.16 65);
+  --color-warning-text: oklch(35% 0.1 55);
+
+  /* Shadows (previously referenced throughout but never defined: every
+     shadow on the site was silently missing) */
+  --shadow-sm: 0 1px 2px oklch(20% 0.014 235 / 0.06), 0 1px 1px oklch(20% 0.014 235 / 0.04);
+  --shadow-md: 0 4px 8px oklch(20% 0.014 235 / 0.08), 0 2px 4px oklch(20% 0.014 235 / 0.05);
+  --shadow-lg: 0 12px 24px oklch(20% 0.014 235 / 0.12), 0 4px 8px oklch(20% 0.014 235 / 0.06);
+
+  /* Typography */
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --font-display: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, "Roboto Mono", monospace;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-short: 160ms;
+  --dur-med: 220ms;
 
   /* Spacing & Sizes */
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
 
+  --spacing-3xs: 0.125rem;
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
   --spacing-md: 1rem;
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
 
   --control-height: 2.75rem;
-  padding: var(--spacing-md);
 }
 
 /* Dark Mode Overrides */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-body: #0f172a;
-    /* Slate 900 */
-    --bg-card: #1e293b;
-    /* Slate 800 */
-    --bg-input: #334155;
-    /* Slate 700 */
+    --bg-body: oklch(18% 0.012 235);
+    --bg-card: oklch(23% 0.014 235);
+    --bg-input: oklch(28% 0.014 235);
 
-    --text-main: #f8fafc;
-    /* Slate 50 */
-    --text-muted: #94a3b8;
-    /* Slate 400 */
-    --text-light: #f8fafc;
-    /* Ensure light text stays light or adapts */
+    --text-main: oklch(95% 0.006 235);
+    --text-muted: oklch(74% 0.01 235);
+    --text-light: oklch(97% 0.004 235);
 
-    --border-color: #334155;
-    /* Slate 700 */
+    --border-color: oklch(36% 0.014 235);
+    --color-focus: oklch(76% 0.16 235);
 
-    --primary: #818cf8;
-    /* Indigo 400 - lighter for dark mode */
-    --primary-hover: #6366f1;
-    /* Indigo 500 */
+    --color-warning-bg: oklch(28% 0.06 65);
+    --color-warning-border: oklch(55% 0.14 70);
+    --color-warning-icon: oklch(75% 0.14 70);
+    --color-warning-text: oklch(85% 0.1 75);
+
+    --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3), 0 1px 1px oklch(0% 0 0 / 0.2);
+    --shadow-md: 0 4px 8px oklch(0% 0 0 / 0.35), 0 2px 4px oklch(0% 0 0 / 0.2);
+    --shadow-lg: 0 12px 24px oklch(0% 0 0 / 0.4), 0 4px 8px oklch(0% 0 0 / 0.25);
+
+    --primary: oklch(70% 0.15 235);
+    /* Lighter, less chroma per dark-mode recipe */
+    --primary-hover: oklch(76% 0.14 235);
+    --danger: oklch(68% 0.17 25);
+    --danger-hover: oklch(74% 0.16 25);
   }
 
   /* Adjust specific elements if needed */
@@ -80,8 +114,22 @@
   }
 
   .btn-secondary:hover {
-    background-color: #475569;
-    /* Slate 600 */
+    background-color: oklch(34% 0.014 235);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .btn:hover {
+    transform: none;
   }
 }
 
@@ -91,82 +139,94 @@ svg {
   max-width: 100%;
 }
 
+html,
+body {
+  overflow-x: clip;
+}
+
 body {
   background-color: var(--bg-body);
   color: var(--text-main);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  font-family: var(--font-body);
   margin: 0;
   line-height: 1.5;
+  padding-inline: max(0px, env(safe-area-inset-left));
 }
 
 /* =========================================
    Layout
    ========================================= */
+/* A flat, left-striped technical notice: not the stock rounded pastel alert box.
+   Matches the app's existing terminal/monospace identity (see #logOutput) instead
+   of bolting on a generic Bootstrap-style warning component. */
 .warning-banner {
-  background-color: #fef3c7;
-  border: 1px solid #fbbf24;
-  border-radius: var(--radius-md);
+  /* Reset button defaults: this is a <button> so it's keyboard/click accessible */
+  font: inherit;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+
+  background-color: var(--bg-input);
+  border: none;
+  border-left: 3px solid var(--color-warning-icon);
+  border-radius: 0;
   padding: var(--spacing-sm) var(--spacing-md);
   margin-bottom: var(--spacing-md);
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--spacing-sm);
+  transition: background-color var(--dur-short) var(--ease-out);
 }
 
-.warning-banner .warning-content {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  width: 100%;
+.warning-banner:hover {
+  background-color: var(--border-color);
 }
 
-.warning-icon {
-  width: 20px;
-  height: 20px;
-  color: #f59e0b;
+.warning-banner:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.warning-tag {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-warning-icon);
   flex-shrink: 0;
 }
 
-.warning-banner span {
-  color: #92400e;
+.warning-banner span:not(.warning-tag) {
+  color: var(--text-main);
   font-size: 0.9rem;
   line-height: 1.4;
 }
 
-@media (prefers-color-scheme: dark) {
-  .warning-banner {
-    background-color: #78350f;
-    border-color: #f59e0b;
-  }
-
-  .warning-banner span {
-    color: #fbbf24;
-  }
-}
-
 .container {
-  max-width: 600px;
-  /* Slightly wider for better canvas fit */
+  max-width: 40rem;
+  /* Mobile/tablet default; widened at the desktop/ultrawide breakpoints below */
   margin: 0 auto;
   padding: var(--spacing-md);
 }
 
 header {
   margin-bottom: var(--spacing-xl);
-  padding: 0 var(--spacing-lg);
+  padding: 0 var(--spacing-sm);
 }
 
 .header-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
 }
 
 .header-left {
+  /* Empty spacer: no forced width. A fixed 100px match against
+     .header-right ate too much space on narrow screens; a perfectly
+     centered title matters less than guaranteeing no overflow at 320px. */
   flex: 0 0 auto;
-  width: 100px;
-  /* Match button width to center title */
 }
 
 .header-center {
@@ -181,17 +241,17 @@ header {
   display: flex;
   gap: var(--spacing-sm);
   align-items: center;
-  width: 100px;
-  /* Match left side for centering */
   justify-content: flex-end;
 }
 
 h1 {
-  font-size: 2rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.375rem, 5vw + 0.5rem, 2rem);
   font-weight: 700;
   color: var(--text-main);
   margin-bottom: var(--spacing-xs);
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
 }
 
 .subtitle {
@@ -208,9 +268,15 @@ h1 {
   background: var(--bg-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
   border: 1px solid var(--border-color);
+}
+
+@media (min-width: 40rem) {
+  .card {
+    padding: var(--spacing-lg);
+  }
 }
 
 /* Buttons */
@@ -225,7 +291,7 @@ h1 {
   border-radius: var(--radius-md);
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--dur-med) var(--ease-out);
   gap: var(--spacing-sm);
   color: var(--text-light);
   background-color: var(--primary);
@@ -238,6 +304,11 @@ h1 {
 
 .btn:active {
   transform: translateY(0);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .btn-secondary {
@@ -281,15 +352,15 @@ select {
   background-color: var(--bg-input);
   color: var(--text-main);
   font-size: 0.875rem;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color var(--dur-short) var(--ease-out), background-color var(--dur-short) var(--ease-out);
   width: 100%;
 }
 
-input:focus,
-select:focus {
-  outline: none;
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
   background-color: var(--bg-card);
 }
 
@@ -310,7 +381,7 @@ select:focus {
   border-radius: var(--radius-md);
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--dur-med) var(--ease-out);
   font-weight: 500;
   display: flex;
   align-items: center;
@@ -384,10 +455,10 @@ select:focus {
   text-align: center;
 }
 
-.dimension-input:focus {
-  outline: none;
+.dimension-input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.2);
 }
 
 .dimension-unit {
@@ -415,7 +486,7 @@ select:focus {
   margin-left: var(--spacing-sm);
   color: var(--text-muted);
   box-shadow: var(--shadow-sm);
-  transition: all 0.2s;
+  transition: all var(--dur-med) var(--ease-out);
   flex-shrink: 0;
   /* Prevent handle from shrinking */
   user-select: none;
@@ -512,35 +583,85 @@ select:focus {
   overflow-y: auto;
 }
 
-/* Responsive */
-@media (max-width: 480px) {
+/* =========================================
+   Responsive: mobile-first (min-width), content-driven breakpoints
+   ========================================= */
+
+/* Base (< 40rem / ~640px): single column, touch-friendly control rows */
+.control-group {
+  flex-wrap: wrap;
+}
+
+.btn-icon {
+  flex: 1;
+  /* Icon buttons expand to fill their row for easier touch on small screens */
+  min-width: 2.75rem;
+}
+
+.button-group {
+  width: 100%;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.workspace-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* Prevent flex/grid children from forcing horizontal overflow */
+}
+
+/* ~640px: tablet: comfortable single column, controls stop stretching */
+@media (min-width: 40rem) {
   .container {
-    padding: var(--spacing-xs);
-  }
-
-  header {
-    margin-bottom: var(--spacing-md);
-  }
-
-  .card {
-    padding: var(--spacing-md);
-  }
-
-  .label-type-selector {
-    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-lg);
   }
 
   .control-group {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .btn-icon {
-    flex: 1;
-    /* Make icon buttons expand on mobile for easier touch */
+    flex: 0 0 auto;
   }
 
   .button-group {
-    width: 100%;
+    width: auto;
+  }
+}
+
+/* ~960px: desktop: switch to a two-pane workbench layout */
+@media (min-width: 60rem) {
+  .container {
+    max-width: 64rem;
+  }
+
+  main {
+    display: grid;
+    grid-template-columns: minmax(20rem, 27.5rem) 1fr;
+    align-items: start;
+    gap: var(--spacing-xl);
+  }
+
+  .workspace-preview {
+    position: sticky;
+    top: var(--spacing-lg);
+  }
+}
+
+/* ~1440px: ultrawide: more breathing room, cap so content doesn't stretch edge-to-edge */
+@media (min-width: 90rem) {
+  .container {
+    max-width: 90rem;
+  }
+
+  main {
+    grid-template-columns: minmax(22rem, 32rem) 1fr;
+    gap: var(--spacing-2xl);
   }
 }
 
@@ -681,7 +802,7 @@ input:checked+.slider:before {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  transition: all 0.2s;
+  transition: all var(--dur-med) var(--ease-out);
 }
 
 .modal-close:hover {
@@ -802,7 +923,7 @@ input:checked+.slider:before {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn var(--dur-med) var(--ease-out);
 }
 
 @keyframes fadeIn {
@@ -825,15 +946,15 @@ input:checked+.slider:before {
   background-color: var(--bg-input);
   color: var(--text-main);
   font-size: 0.875rem;
-  transition: all 0.2s ease;
+  transition: all var(--dur-med) var(--ease-out);
   line-height: 1.5;
 }
 
-.input-modern:focus {
-  outline: none;
+.input-modern:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
   border-color: var(--primary);
   background-color: var(--bg-card);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
 .input-modern::placeholder {
@@ -882,4 +1003,50 @@ input:checked+.slider:before {
 textarea.input-modern {
   resize: vertical;
   min-height: 2.5rem;
+}
+
+/* =========================================
+   Padding compass: Top / Left+Right / Bottom laid out to match the
+   physical directions they represent, instead of an arbitrary 2x2 grid.
+   ========================================= */
+.padding-compass {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    "top   top"
+    "left  right"
+    "bottom bottom";
+  gap: var(--spacing-sm);
+}
+
+.padding-compass-top {
+  grid-area: top;
+}
+
+.padding-compass-left {
+  grid-area: left;
+}
+
+.padding-compass-right {
+  grid-area: right;
+}
+
+.padding-compass-bottom {
+  grid-area: bottom;
+}
+
+.padding-compass-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3xs);
+}
+
+.padding-compass-field label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.padding-compass-field input {
+  width: 100%;
 }

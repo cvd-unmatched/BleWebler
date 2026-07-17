@@ -86,6 +86,220 @@ async function printLabel() {
   }
 }
 
+async function printAlignmentTest() {
+  try {
+    await connectPrinter();
+
+    if (printerInstance) {
+      const printer = supportedPrinters.find(p => p.pattern.test(device.name));
+      const infinitePaperCheckbox = document.getElementById("infinitePaperCheckbox");
+      const isSegmented = infinitePaperCheckbox ? !infinitePaperCheckbox.checked : true;
+      const isInfinitePaper = infinitePaperCheckbox ? infinitePaperCheckbox.checked : false;
+
+      log("Printing alignment test (canvas border, padding bounds, center crosshair)...");
+
+      if (window.fabricEditor && window.fabricEditor.showAlignmentGuides) {
+        window.fabricEditor.showAlignmentGuides();
+      }
+
+      try {
+        const bitmap = constructBitmap(printer.px, 1, isInfinitePaper, true);
+        if (bitmap) {
+          await printerInstance.print(device, bitmap, isSegmented);
+        }
+      } finally {
+        // Always remove the guides again, even if printing failed, so the
+        // user's actual design is left untouched on the canvas.
+        if (window.fabricEditor && window.fabricEditor.hideAlignmentGuides) {
+          window.fabricEditor.hideAlignmentGuides();
+        }
+      }
+
+      log("Alignment test printed. Compare the printed lines to your physical label edges and adjust the padding values.");
+    }
+  } catch (err) {
+    console.error("Alignment test print failed:", err);
+    log("Alignment test print failed: " + err);
+    if (window.fabricEditor && window.fabricEditor.hideAlignmentGuides) {
+      window.fabricEditor.hideAlignmentGuides();
+    }
+  }
+}
+
+// Minimal RFC4180-ish CSV parser: handles quoted fields, escaped quotes ("") and commas/newlines
+// inside quotes. The header row (first row) supplies the field names used for merge matching.
+function parseCSV(text) {
+  const rawRows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  let i = 0;
+  const len = text.length;
+
+  while (i < len) {
+    const char = text[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i += 2;
+        } else {
+          inQuotes = false;
+          i++;
+        }
+      } else {
+        field += char;
+        i++;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+      i++;
+    } else if (char === ',') {
+      row.push(field);
+      field = '';
+      i++;
+    } else if (char === '\r') {
+      i++;
+    } else if (char === '\n') {
+      row.push(field);
+      rawRows.push(row);
+      row = [];
+      field = '';
+      i++;
+    } else {
+      field += char;
+      i++;
+    }
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rawRows.push(row);
+  }
+
+  // Drop blank trailing lines
+  const rows = rawRows.filter(r => !(r.length === 1 && r[0].trim() === ''));
+  if (rows.length === 0) return { headers: [], rows: [] };
+
+  const headers = rows[0].map(h => h.trim());
+  const dataRows = rows.slice(1).map(r => {
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = r[idx] !== undefined ? r[idx] : ''; });
+    return obj;
+  });
+
+  return { headers, rows: dataRows };
+}
+
+// Prints one label per row, substituting the value of each merge-tagged canvas object
+// (set via the "Merge field name" input in the object controls) with the matching CSV column.
+// Restores every tagged object to its original value afterward, so the visible canvas design
+// is left exactly as the user had it -- including on error/cancel.
+async function printBatch(rows) {
+  if (!window.fabricEditor || !window.fabricEditor.getMergeFieldObjects) return;
+
+  const fields = window.fabricEditor.getMergeFieldObjects();
+  if (fields.length === 0) {
+    log("Batch print: no canvas objects have a merge field set. Tag a text or QR object first.");
+    return;
+  }
+  if (!rows || rows.length === 0) {
+    log("Batch print: no rows to print.");
+    return;
+  }
+
+  const fabricCanvas = window.getFabricCanvas();
+  const snapshots = fields.map(f => ({
+    object: f.object,
+    isQRCode: f.isQRCode,
+    isImage: f.isImage,
+    originalValue: f.isQRCode ? f.object.qrContent : (f.isImage ? f.object.originalImageDataURL : f.object.text)
+  }));
+
+  try {
+    await connectPrinter();
+    if (!printerInstance) return;
+
+    const printer = supportedPrinters.find(p => p.pattern.test(device.name));
+    const infinitePaperCheckbox = document.getElementById("infinitePaperCheckbox");
+    const isSegmented = infinitePaperCheckbox ? !infinitePaperCheckbox.checked : true;
+    const isInfinitePaper = infinitePaperCheckbox ? infinitePaperCheckbox.checked : false;
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      log(`Batch print: row ${i + 1} of ${rows.length}...`);
+
+      await Promise.all(fields.map(f => {
+        const value = row[f.mergeField];
+        if (value === undefined) return Promise.resolve();
+        if (f.isQRCode) {
+          return new Promise(resolve => window.fabricEditor.setQRObjectContent(f.object, value, () => resolve()));
+        }
+        if (f.isImage) {
+          return new Promise(resolve => window.fabricEditor.setImageObjectContent(f.object, value, (ok, err) => {
+            if (!ok) {
+              log(`Batch print: row ${i + 1}, failed to load image for field "${f.mergeField}" (${err ? err.message || err : 'unknown error'}). Check the URL is reachable and CORS-enabled; a data: URI is more reliable.`);
+            }
+            resolve();
+          }));
+        }
+        f.object.set({ text: String(value) });
+        return Promise.resolve();
+      }));
+
+      fabricCanvas.discardActiveObject();
+      fabricCanvas.renderAll();
+
+      const bitmap = constructBitmap(printer.px, 1, isInfinitePaper, true);
+      if (bitmap) {
+        await printerInstance.print(device, bitmap, isSegmented);
+      }
+
+      if (i < rows.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    log(`Batch print: finished printing ${rows.length} labels.`);
+  } catch (err) {
+    console.error("Batch print failed:", err);
+    log("Batch print failed: " + err);
+  } finally {
+    // Always restore original values, even on error, so the visible design is untouched.
+    for (const snap of snapshots) {
+      if (snap.isQRCode) {
+        await new Promise(resolve => window.fabricEditor.setQRObjectContent(snap.object, snap.originalValue, () => resolve()));
+      } else if (snap.isImage) {
+        if (snap.originalValue) {
+          await new Promise(resolve => window.fabricEditor.setImageObjectContent(snap.object, snap.originalValue, () => resolve()));
+        }
+      } else {
+        snap.object.set({ text: snap.originalValue });
+      }
+    }
+    fabricCanvas.renderAll();
+    log("Batch print: restored original canvas content.");
+  }
+}
+
+async function reSyncPrinter() {
+  try {
+    await connectPrinter();
+
+    if (printerInstance && printerInstance.feedToNextLabel) {
+      await printerInstance.feedToNextLabel(device);
+    } else if (printerInstance) {
+      log("Re-sync is not supported by this printer's driver.");
+    }
+  } catch (err) {
+    console.error("Re-sync failed:", err);
+    log("Re-sync failed: " + err);
+  }
+}
+
 async function disconnectPrinter() {
   if (printerInstance) {
     await printerInstance.disconnect();

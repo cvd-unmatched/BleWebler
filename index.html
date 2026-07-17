@@ -10,15 +10,13 @@
 
 <body>
   <div class="container">
-    <!-- Warning Banner -->
-    <!--<div id="warningBanner" class="warning-banner">
-      <div class="warning-content">
-        <svg class="warning-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2L2 22h20L12 2zm0 4l7.5 14h-15L12 6zm0 8v4h2v-4h-2zm0 6v2h2v-2h-2z" fill="currentColor" />
-        </svg>
-        <span><strong>Warning:</strong> Use at your own risk.</span>
-      </div>
-    </div>-->
+    <!-- Bluetooth Support Warning Banner (shown when navigator.bluetooth is unavailable;
+         click reopens the full explanation modal even after it's been dismissed once) -->
+    <button id="bluetoothWarningBanner" class="warning-banner" style="display: none;" type="button"
+      title="Click for details">
+      <span class="warning-tag">Warning</span>
+      <span>Web Bluetooth isn't supported in this browser. Click for details.</span>
+    </button>
     <header>
       <div class="header-content">
         <div class="header-left"></div>
@@ -27,52 +25,25 @@
           <p class="subtitle">Open Source BLE Web Labeler</p>
         </div>
         <div class="header-right">
+          <!-- Saved Labels Button -->
+          <button id="savedLabelsBtn" class="btn btn-icon header-btn" title="Saved Labels">
+            <svg class="icon" viewBox="0 0 24 24">
+              <path
+                d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+            </svg>
+          </button>
           <!-- Shortcuts Button -->
           <button id="shortcutsBtn" class="btn btn-icon header-btn" title="Keyboard Shortcuts">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg class="icon" viewBox="0 0 24 24">
               <path
-                d="M7 9C7 9.55228 6.55228 10 6 10C5.44772 10 5 9.55228 5 9C5 8.44772 5.44772 8 6 8C6.55228 8 7 8.44772 7 9Z"
-                fill="#FFFFFF" />
-              <path
-                d="M7 12C7 12.5523 6.55228 13 6 13C5.44772 13 5 12.5523 5 12C5 11.4477 5.44772 11 6 11C6.55228 11 7 11.4477 7 12Z"
-                fill="#FFFFFF" />
-              <path
-                d="M10 12C10 12.5523 9.55228 13 9 13C8.44772 13 8 12.5523 8 12C8 11.4477 8.44772 11 9 11C9.55228 11 10 11.4477 10 12Z"
-                fill="#FFFFFF" />
-              <path
-                d="M10 9C10 9.55228 9.55228 10 9 10C8.44772 10 8 9.55228 8 9C8 8.44772 8.44772 8 9 8C9.55228 8 10 8.44772 10 9Z"
-                fill="#FFFFFF" />
-              <path
-                d="M13 9C13 9.55228 12.5523 10 12 10C11.4477 10 11 9.55228 11 9C11 8.44772 11.4477 8 12 8C12.5523 8 13 8.44772 13 9Z"
-                fill="#FFFFFF" />
-              <path
-                d="M13 12C13 12.5523 12.5523 13 12 13C11.4477 13 11 12.5523 11 12C11 11.4477 11.4477 11 12 11C12.5523 11 13 11.4477 13 12Z"
-                fill="#FFFFFF" />
-              <path
-                d="M16 9C16 9.55228 15.5523 10 15 10C14.4477 10 14 9.55228 14 9C14 8.44772 14.4477 8 15 8C15.5523 8 16 8.44772 16 9Z"
-                fill="#FFFFFF" />
-              <path
-                d="M16 12C16 12.5523 15.5523 13 15 13C14.4477 13 14 12.5523 14 12C14 11.4477 14.4477 11 15 11C15.5523 11 16 11.4477 16 12Z"
-                fill="#FFFFFF" />
-              <path
-                d="M19 9C19 9.55228 18.5523 10 18 10C17.4477 10 17 9.55228 17 9C17 8.44772 17.4477 8 18 8C18.5523 8 19 8.44772 19 9Z"
-                fill="#FFFFFF" />
-              <path
-                d="M19 12C19 12.5523 18.5523 13 18 13C17.4477 13 17 12.5523 17 12C17 11.4477 17.4477 11 18 11C18.5523 11 19 11.4477 19 12Z"
-                fill="#FFFFFF" />
-              <path
-                d="M16 5C18.8284 5 20.2426 5 21.1213 5.87868C22 6.75736 22 8.17157 22 11V13C22 15.8284 22 17.2426 21.1213 18.1213C20.2426 19 18.8284 19 16 19H8C5.17157 19 3.75736 19 2.87868 18.1213C2 17.2426 2 15.8284 2 13V11C2 8.17157 2 6.75736 2.87868 5.87868C3.75736 5 5.17157 5 8 5H12"
-                stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" fill="none" />
-              <path d="M7 16H17" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" />
+                d="M20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z" />
             </svg>
           </button>
           <!-- Settings Button -->
           <button id="settingsBtn" class="btn btn-icon header-btn" title="Paper Settings">
-            <svg class="icon" viewBox="0 0 1280 1280">
-              <g transform="translate(0,1280) scale(0.1,-0.1)">
-                <path
-                  d="M6100 12794 c-399 -23 -950 -102 -1062 -152 -69 -31 -143 -105 -180 -180 l-33 -67 -5 -368 -5 -369 -170 -58 c-287 -98 -506 -189 -728 -303 l-118 -60 -252 250 c-300 298 -314 307 -467 308 -86 0 -101 -3 -160 -31 -110 -52 -431 -291 -670 -498 -211 -184 -532 -505 -716 -716 -206 -239 -445 -559 -498 -670 -28 -59 -31 -74 -30 -160 1 -156 8 -167 306 -467 l251 -252 -60 -118 c-114 -222 -205 -441 -303 -728 l-58 -170 -369 -5 -368 -5 -67 -33 c-75 -37 -149 -111 -180 -180 -37 -83 -102 -474 -135 -817 -24 -252 -24 -838 0 -1090 33 -343 98 -734 135 -817 31 -69 105 -143 180 -180 l67 -33 368 -5 369 -5 58 -170 c98 -287 189 -506 303 -728 l60 -118 -251 -252 c-298 -300 -305 -311 -306 -467 -1 -86 2 -101 30 -160 53 -111 292 -431 498 -670 184 -211 505 -532 716 -716 239 -207 560 -446 670 -498 59 -28 74 -31 160 -30 156 1 167 8 467 306 l252 251 118 -60 c222 -114 441 -205 728 -303 l170 -58 5 -369 5 -368 33 -67 c37 -75 111 -149 180 -180 83 -37 474 -102 817 -135 252 -24 838 -24 1090 0 343 33 734 98 817 135 69 31 143 105 180 180 l33 67 5 368 5 369 170 58 c287 98 506 189 728 303 l118 60 252 -250 c300 -298 314 -307 467 -308 86 0 101 3 160 31 110 52 431 291 670 498 211 184 532 505 716 716 206 239 445 559 498 670 28 59 31 74 30 160 -1 156 -8 167 -306 467 l-251 252 60 118 c114 222 205 441 303 728 l58 170 369 5 368 5 67 33 c75 37 149 111 180 180 37 83 102 474 135 817 24 252 24 838 0 1090 -33 343 -98 734 -135 817 -31 69 -105 143 -180 180 l-67 33 -368 5 -369 5 -58 170 c-98 287 -189 506 -303 728 l-60 118 251 252 c298 300 305 311 306 467 1 86 -2 101 -30 160 -53 111 -292 431 -498 670 -184 211 -505 532 -716 716 -239 207 -560 446 -670 498 -59 28 -74 31 -160 30 -156 -1 -167 -8 -467 -306 l-252 -251 -118 60 c-222 114 -441 205 -728 303 l-170 58 -5 369 -5 368 -33 67 c-37 75 -111 149 -180 180 -83 37 -480 103 -807 133 -161 15 -710 27 -855 19z m620 -3779 c474 -59 903 -235 1293 -532 131 -100 370 -339 470 -470 296 -389 473 -820 532 -1293 20 -162 20 -478 0 -640 -59 -473 -236 -904 -532 -1293 -100 -131 -339 -370 -470 -470 -390 -297 -819 -473 -1293 -532 -162 -20 -478 -20 -640 0 -474 59 -903 235 -1293 532 -131 100 -370 339 -470 470 -296 389 -473 820 -532 1293 -20 162 -20 478 0 640 59 473 236 904 532 1293 100 131 339 370 470 470 385 292 816 471 1281 531 150 19 498 20 652 1z" />
-              </g>
+            <svg class="icon" viewBox="0 0 24 24">
+              <path
+                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
             </svg>
           </button>
         </div>
@@ -80,23 +51,8 @@
     </header>
 
     <main>
-      <!-- Mode Selector -->
-      <div class="label-type-selector">
-        <button class="label-type-btn active" data-type="text">
-          <svg class="icon" viewBox="0 0 24 24">
-            <path d="M4 4h16v2H4V4zm6 4h4v12h-4V8z" />
-          </svg> Text
-        </button>
-        <button class="label-type-btn" data-type="info">
-          <svg class="icon" viewBox="0 0 24 24">
-            <path
-              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
-          </svg> Info
-        </button>
-      </div>
-
-      <!-- Text Mode Options -->
-      <section id="textOptions" class="card">
+      <!-- Canvas preview: sticky left pane on desktop+ (see .workspace-preview in style.css) -->
+      <div class="workspace-preview">
         <div class="canvas-container-wrapper" id="canvasWrapper">
           <div class="canvas-content">
             <canvas id="fabricCanvas" width="384" height="96"></canvas>
@@ -126,7 +82,27 @@
             <span class="dimension-unit">mm</span>
           </div>
         </div>
+      </div>
 
+      <!-- Everything else: scrolls normally, right pane on desktop+ -->
+      <div class="workspace-panel">
+      <!-- Mode Selector -->
+      <div class="label-type-selector">
+        <button class="label-type-btn active" data-type="text">
+          <svg class="icon" viewBox="0 0 24 24">
+            <path d="M4 4h16v2H4V4zm6 4h4v12h-4V8z" />
+          </svg> Text
+        </button>
+        <button class="label-type-btn" data-type="info">
+          <svg class="icon" viewBox="0 0 24 24">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+          </svg> Info
+        </button>
+      </div>
+
+      <!-- Text Mode Options -->
+      <section id="textOptions" class="card">
         <!-- General Controls -->
         <div id="general-controls-box">
           <div id="text-input-group" class="control-group">
@@ -198,6 +174,15 @@
 
         <!-- Object Specific Controls -->
         <div id="object-specific-controls" class="mt-4">
+          <div id="merge-field-group" class="control-group mb-4" style="display: none;">
+            <label for="mergeFieldInput"
+              style="font-weight: 500; margin-bottom: var(--spacing-xs); display: block; font-size: 0.9rem;">
+              Merge field name (optional):
+            </label>
+            <input type="text" id="mergeFieldInput" placeholder="e.g. name, qr_url" class="input-modern"
+              title="Tag this object so Batch Print can substitute its content per CSV row" style="width: 100%;">
+          </div>
+
           <div id="font-style-group" class="control-group">
             <input type="number" id="fontSize" value="48" min="1" title="Font Size" style="width: 80px;" />
             <input type="text" id="fontFamilyInput" list="fontList" value="Arial" placeholder="Font Family"
@@ -231,28 +216,39 @@
             </button>
           </div>
 
-          <div id="padding-controls-group" class="control-group mb-4">
-            <label
-              style="font-weight: 500; margin-bottom: var(--spacing-xs); display: block; font-size: 0.9rem;">Padding
-              (mm):</label>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm);">
-              <div>
-                <label for="paddingTop" style="font-size: 0.85rem; color: var(--text-muted);">Top:</label>
-                <input type="number" id="paddingTop" value="0" min="0" step="0.5" style="width: 80px;">
+          <div id="padding-controls-group" class="mb-4">
+            <label class="input-label" style="margin-bottom: var(--spacing-sm); display: block;">Padding (mm)</label>
+            <div class="padding-compass">
+              <div class="padding-compass-field padding-compass-top">
+                <label for="paddingTop">Top</label>
+                <input type="number" id="paddingTop" value="0" min="0" step="0.5">
               </div>
-              <div>
-                <label for="paddingBottom" style="font-size: 0.85rem; color: var(--text-muted);">Bottom:</label>
-                <input type="number" id="paddingBottom" value="0" min="0" step="0.5" style="width: 80px;">
+              <div class="padding-compass-field padding-compass-left">
+                <label for="paddingLeft">Left</label>
+                <input type="number" id="paddingLeft" value="0" min="0" step="0.5">
               </div>
-              <div>
-                <label for="paddingLeft" style="font-size: 0.85rem; color: var(--text-muted);">Left:</label>
-                <input type="number" id="paddingLeft" value="0" min="0" step="0.5" style="width: 80px;">
+              <div class="padding-compass-field padding-compass-right">
+                <label for="paddingRight">Right</label>
+                <input type="number" id="paddingRight" value="0" min="0" step="0.5">
               </div>
-              <div>
-                <label for="paddingRight" style="font-size: 0.85rem; color: var(--text-muted);">Right:</label>
-                <input type="number" id="paddingRight" value="0" min="0" step="0.5" style="width: 80px;">
+              <div class="padding-compass-field padding-compass-bottom">
+                <label for="paddingBottom">Bottom</label>
+                <input type="number" id="paddingBottom" value="0" min="0" step="0.5">
               </div>
             </div>
+
+            <label class="toggle-switch" style="margin-top: var(--spacing-md);"
+              title="When on, objects can be dragged or resized past the label edge. Printing simply clips whatever falls outside the label, giving a full-bleed edge-to-edge look.">
+              <input type="checkbox" id="allowBleedCheckbox">
+              <span class="slider"></span>
+              <span>Allow bleed (objects may extend past the label edge)</span>
+            </label>
+
+            <button id="alignmentTestBtn" class="btn btn-secondary btn-sm btn-block"
+              style="margin-top: var(--spacing-md);"
+              title="Print a test label showing the current padding bounds as guide lines">
+              Print Alignment Test
+            </button>
           </div>
 
           <div id="qr-controls-group" class="control-group"
@@ -397,11 +393,21 @@
         Print!
       </button>
 
+      <button id="batchPrintBtn" class="btn btn-secondary btn-block mt-2"
+        title="Print one label per row of a CSV, substituting text/QR objects tagged with a merge field name">
+        Batch Print (CSV)
+      </button>
+
       <button class="advanced-toggle" onclick="toggleAdvanced()">Show Advanced</button>
 
       <div id="advancedSection" style="display: none;">
+        <button id="reSyncBtn" class="btn btn-secondary btn-sm mt-4"
+          title="Re-sends the gap-feed sequence to help the printer locate the next label boundary after a tear. Experimental, verify on your printer.">
+          Re-sync Printer
+        </button>
         <button onclick="disconnectPrinter()" class="btn btn-secondary btn-sm mt-4">Disconnect Printer</button>
         <pre id="logOutput"></pre>
+      </div>
       </div>
     </main>
     <!-- Printer Selection Modal -->
@@ -452,12 +458,70 @@
       </div>
     </div>
 
+    <!-- Batch Print Modal -->
+    <div id="batchPrintModal" class="modal">
+      <div class="modal-content" style="max-height: 85vh; overflow-y: auto; max-width: 600px;">
+        <button class="modal-close" id="closeBatchPrintModal" title="Close">×</button>
+        <h2>Batch Print from CSV</h2>
+        <p>Each canvas text, image, or QR object with a <strong>merge field name</strong> set (in its object
+          controls) will be replaced with the matching column value for every row, one label printed per row. The
+          header row of your CSV defines the field names. For image fields, use a <code>data:</code> URI where
+          possible. External image URLs need CORS enabled on the host, or printing that row will fail.</p>
+
+        <div class="form-group">
+          <label for="batchCsvFile">Upload CSV file:</label>
+          <input type="file" id="batchCsvFile" accept=".csv,text/csv">
+        </div>
+
+        <div class="form-group">
+          <label for="batchCsvText">...or paste CSV data:</label>
+          <textarea id="batchCsvText" class="input-modern" rows="6"
+            placeholder="name,qr_url&#10;Alice,https://example.com/alice&#10;Bob,https://example.com/bob"></textarea>
+        </div>
+
+        <button id="batchParseBtn" class="btn btn-secondary">Parse / Preview</button>
+
+        <div id="batchPreview" style="display: none; margin-top: var(--spacing-md);">
+          <p id="batchPreviewSummary"></p>
+          <div id="batchFieldWarnings" style="color: var(--text-muted); font-size: 0.9rem;"></div>
+        </div>
+
+        <button id="batchPrintConfirmBtn" class="btn btn-block mt-4" style="display: none;">Print</button>
+      </div>
+    </div>
+
     <!-- Shortcuts Modal -->
     <div id="shortcutsModal" class="modal">
       <div class="modal-content">
         <button class="modal-close" id="closeShortcutsModal" title="Close">×</button>
         <h2>Keyboard Shortcuts</h2>
         <div id="shortcutsList" class="shortcuts-list"></div>
+      </div>
+    </div>
+
+    <!-- Saved Labels Modal -->
+    <div id="savedLabelsModal" class="modal">
+      <div class="modal-content" style="max-height: 85vh; overflow-y: auto; max-width: 600px;">
+        <button class="modal-close" id="closeSavedLabelsModal" title="Close">×</button>
+        <h2>Saved Labels</h2>
+        <p>Labels are saved in this browser (nothing leaves your device). Export a label to a file to back it up or
+          move it to another device, then import it back in here.</p>
+
+        <div class="form-group" style="display: flex; gap: var(--spacing-sm); align-items: flex-end;">
+          <div style="flex: 1;">
+            <label for="saveLabelNameInput">Save current label as:</label>
+            <input type="text" id="saveLabelNameInput" placeholder="e.g. Pantry - Flour" class="input-modern">
+          </div>
+          <button id="saveLabelBtn" class="btn btn-sm">Save</button>
+        </div>
+
+        <div class="form-group">
+          <label for="importLabelFile">Import from file:</label>
+          <input type="file" id="importLabelFile" accept=".json,application/json">
+        </div>
+
+        <div id="savedLabelsList" class="shortcuts-list"></div>
+        <p id="savedLabelsEmpty" class="helper-text" style="display: none;">No saved labels yet.</p>
       </div>
     </div>
   </div>

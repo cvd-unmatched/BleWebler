@@ -19,6 +19,14 @@ let paddingGuides = {
   right: null
 };
 
+// Guide objects drawn on the canvas for the printable alignment test (removed again after printing)
+let alignmentTestGuides = [];
+
+// When true, objects may be moved/scaled partially or fully outside the padding bounds
+// (and the canvas itself). Printing naturally clips whatever falls outside the canvas'
+// own pixel dimensions, so this is how a deliberate bleed/off-label print is done.
+let allowBleed = false;
+
 let qrUpdateTimer = null; // Debounce timer for QR updates
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -79,6 +87,25 @@ document.addEventListener("DOMContentLoaded", () => {
       el.addEventListener('change', updateQRCodeFromInput);
     }
   });
+
+  // Merge field name input (used by Batch Print to tag which objects get substituted)
+  const mergeFieldInput = document.getElementById('mergeFieldInput');
+  if (mergeFieldInput) {
+    mergeFieldInput.addEventListener('input', () => {
+      const activeObject = canvas.getActiveObject();
+      if (activeObject) {
+        activeObject.mergeField = mergeFieldInput.value.trim();
+      }
+    });
+  }
+
+  // Bleed toggle: allow objects to be positioned/scaled past the label edge
+  const allowBleedCheckbox = document.getElementById('allowBleedCheckbox');
+  if (allowBleedCheckbox) {
+    allowBleedCheckbox.addEventListener('change', () => {
+      window.fabricEditor.setAllowBleed(allowBleedCheckbox.checked);
+    });
+  }
 
   // Event listeners for QR Type
   if (qrTypeSelect) {
@@ -238,8 +265,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const bounds = getPaddingBounds();
 
     // Revert changes in scale and position if exceeding boundaries,
-    // but always allow to scale object down
-    if ((obj.scaleX > obj.lastState.scaleX ||
+    // but always allow to scale object down (skipped entirely when bleed is allowed)
+    if (!allowBleed && (obj.scaleX > obj.lastState.scaleX ||
       obj.scaleY > obj.lastState.scaleY) &&
       (objBBox.top < bounds.top ||
         objBBox.left < bounds.left ||
@@ -335,6 +362,8 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function constrainObjectToCanvas(obj) {
+  if (allowBleed) return;
+
   const bounds = getPaddingBounds();
 
   // Update cached bounding box
@@ -388,6 +417,62 @@ function handleObjectModified(e) {
     applyDitheringToImage(modifiedObject);
   }
   updateTextControls(); // Always update text controls regardless of object type
+}
+
+// Swaps a plain (non-QR) image object's source for batch/mail-merge printing, keeping its
+// current on-canvas position/size and re-applying its configured dithering algorithm.
+// newSrc may be a data URI or an http(s) URL. Cross-origin URLs without CORS headers will
+// taint the canvas and fail at the getImageData() step below; onDone(false, err) surfaces that
+// so the caller can report it rather than silently leaving a blank/stale image.
+function setImageObjectContent(imageObject, newSrc, onDone) {
+  if (!imageObject || imageObject.type !== 'image') {
+    if (onDone) onDone(false);
+    return;
+  }
+
+  const targetWidth = imageObject.getScaledWidth();
+  const targetHeight = imageObject.getScaledHeight();
+  const currentLeft = imageObject.left;
+  const currentTop = imageObject.top;
+  const currentAngle = imageObject.angle || 0;
+  const algorithm = imageObject.ditheringAlgorithm || 'floyd-steinberg';
+
+  const tempImage = new Image();
+  tempImage.crossOrigin = 'anonymous';
+  tempImage.onload = function () {
+    let ditheredDataURL;
+    try {
+      const scaledImageData = getImageDataFromImage(tempImage, targetWidth, targetHeight, false);
+      const ditheredImageData = ditheringAlgorithms[algorithm](toGrayscale(scaledImageData));
+      ditheredDataURL = imageDataToDataURL(ditheredImageData);
+    } catch (err) {
+      console.error('Failed to process merge image (likely blocked by CORS):', newSrc, err);
+      if (onDone) onDone(false, err);
+      return;
+    }
+
+    imageObject.setSrc(ditheredDataURL, () => {
+      imageObject.set({
+        scaleX: 1,
+        scaleY: 1,
+        left: currentLeft,
+        top: currentTop,
+        angle: currentAngle,
+        originalImageDataURL: newSrc,
+        ditheringAlgorithm: algorithm,
+        originalWidth: tempImage.width,
+        originalHeight: tempImage.height,
+      });
+      imageObject.setCoords();
+      canvas.renderAll();
+      if (onDone) onDone(true);
+    });
+  };
+  tempImage.onerror = function (err) {
+    console.error('Failed to load merge image source:', newSrc, err);
+    if (onDone) onDone(false, err);
+  };
+  tempImage.src = newSrc;
 }
 
 function applyDitheringToImage(obj) {
@@ -660,120 +745,116 @@ function updateQRCodeFromInput() {
   }
 
   qrUpdateTimer = setTimeout(() => {
-    // Check if QRCode library is loaded
-    if (typeof QRCode === 'undefined') {
-      alert("QR code library failed to load. Please refresh the page.");
-      return;
-    }
-
-    // Capture activeObject again inside timeout to ensure it's still valid/selected
-    // Actually, we should probably stick to the one we checked outside, OR re-check.
-    // If user changed selection during debounce, we probably shouldn't update the OLD selection unless we tracked it.
-    // But since `updateQRCodeFromInput` is driven by global inputs that adhere to the *currently* active object (via UI updates), 
-    // it is safer to re-check specific object validity or just target `activeObject` caught in closure if we want to be sure.
-    // However, if selection changed, the inputs would have been updated to the new selection's values.
-    // Let's re-acquire active object to be safe and ensure we are modifying what the user thinks they are modifying.
+    // Capture activeObject again inside timeout to ensure it's still valid/selected.
+    // Since `updateQRCodeFromInput` is driven by global inputs that adhere to the *currently*
+    // active object, re-check validity in case selection changed during the debounce delay.
     const currentActive = canvas.getActiveObject();
     if (!currentActive || !currentActive.isQRCode) return; // Abort if selection changed
 
-    // Store current position and size
-    const currentLeft = currentActive.left;
-    const currentTop = currentActive.top;
-    const currentScaleX = currentActive.scaleX;
-    const currentScaleY = currentActive.scaleY;
-    const currentAngle = currentActive.angle || 0;
+    setQRObjectContent(currentActive, newContent);
+  }, 300); // debounce delay
+}
 
-    // Create a temporary container for QR code generation
-    const tempDiv = document.createElement('div');
-    tempDiv.style.position = 'absolute';
-    tempDiv.style.left = '-9999px';
-    tempDiv.style.width = '200px';
-    tempDiv.style.height = '200px';
-    document.body.appendChild(tempDiv);
+// Regenerates a QR code object's image for new content, keeping its position/size/angle.
+// Extracted from updateQRCodeFromInput's debounced update so it can also be driven
+// programmatically (e.g. by batch/mail-merge printing) without touching the QR type/content
+// DOM inputs or requiring the object to be the current canvas selection.
+function setQRObjectContent(qrObject, newContent, onDone) {
+  if (typeof QRCode === 'undefined') {
+    alert("QR code library failed to load. Please refresh the page.");
+    if (onDone) onDone(false);
+    return;
+  }
 
-    // Generate new QR code
-    const qrcode = new QRCode(tempDiv, {
-      text: newContent,
-      width: 200,
-      height: 200,
-      colorDark: '#000000',
-      colorLight: '#FFFFFF',
-      correctLevel: QRCode.CorrectLevel.H
-    });
+  // Store current position and size
+  const currentLeft = qrObject.left;
+  const currentTop = qrObject.top;
+  const currentScaleX = qrObject.scaleX;
+  const currentAngle = qrObject.angle || 0;
 
-    // Capture module count for snapping
-    let moduleCount = 21; // Default fallback
-    if (qrcode._oQRCode && qrcode._oQRCode.moduleCount) {
-      moduleCount = qrcode._oQRCode.moduleCount;
+  // Create a temporary container for QR code generation
+  const tempDiv = document.createElement('div');
+  tempDiv.style.position = 'absolute';
+  tempDiv.style.left = '-9999px';
+  tempDiv.style.width = '200px';
+  tempDiv.style.height = '200px';
+  document.body.appendChild(tempDiv);
+
+  // Generate new QR code
+  const qrcode = new QRCode(tempDiv, {
+    text: newContent,
+    width: 200,
+    height: 200,
+    colorDark: '#000000',
+    colorLight: '#FFFFFF',
+    correctLevel: QRCode.CorrectLevel.H
+  });
+
+  // Capture module count for snapping
+  let moduleCount = 21; // Default fallback
+  if (qrcode._oQRCode && qrcode._oQRCode.moduleCount) {
+    moduleCount = qrcode._oQRCode.moduleCount;
+  }
+
+  // Wait for QR code to render
+  setTimeout(() => {
+    const qrImg = tempDiv.querySelector('img');
+    const qrCanvas = tempDiv.querySelector('canvas');
+
+    let imageSrc;
+    if (qrImg && qrImg.src) {
+      imageSrc = qrImg.src;
+    } else if (qrCanvas) {
+      imageSrc = qrCanvas.toDataURL('image/png');
+    } else {
+      const qrSvg = tempDiv.querySelector('svg');
+      if (qrSvg) {
+        const svgData = new XMLSerializer().serializeToString(qrSvg);
+        imageSrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+      } else {
+        // Failure
+        document.body.removeChild(tempDiv);
+        if (onDone) onDone(false);
+        return;
+      }
     }
 
-    // Wait for QR code to render
-    setTimeout(() => {
-      const qrImg = tempDiv.querySelector('img');
-      const qrCanvas = tempDiv.querySelector('canvas');
+    // Update the existing object source
+    qrObject.setSrc(imageSrc, function () {
+      // Logic to maintain size but snap to new module count
+      // Note: qrObject.width might have been reset by setSrc to the new image natural width (200)
 
-      let imageSrc;
-      if (qrImg && qrImg.src) {
-        imageSrc = qrImg.src;
-      } else if (qrCanvas) {
-        imageSrc = qrCanvas.toDataURL('image/png');
-      } else {
-        const qrSvg = tempDiv.querySelector('svg');
-        if (qrSvg) {
-          const svgData = new XMLSerializer().serializeToString(qrSvg);
-          imageSrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
-        } else {
-          // Failure
-          document.body.removeChild(tempDiv);
-          return;
-        }
-      }
+      // Calculate scale based on module count to snap to integer pixels
+      // We want to keep the object roughly the same physical size on the canvas.
+      // We captured `currentScaleX` and assume previous natural width was 200 (we always
+      // generate 200x200), so `previousVisualWidth` approximates the prior on-canvas size.
+      const previousVisualWidth = currentScaleX * (qrObject.width || 200);
 
-      // Update the existing object source
-      currentActive.setSrc(imageSrc, function () {
-        // Logic to maintain size but snap to new module count
-        // Note: currentActive.width might have been reset by setSrc to the new image natural width (200)
+      let idealModuleSizePixels = Math.round(previousVisualWidth / moduleCount);
+      if (idealModuleSizePixels < 1) idealModuleSizePixels = 1;
 
-        // Calculate scale based on module count to snap to integer pixels
-        // We want to keep the object roughly the same physical size on the canvas
-        // Visual Size = currentActive.getScaledWidth();
-        // Since we just called setSrc, fabric might have reset scale to 1 or changed width.
-        // Actually setSrc resets width/height to new image dims, and usually resets scale unless we re-apply it.
+      const targetDimension = idealModuleSizePixels * moduleCount;
+      const newScale = targetDimension / qrObject.width;
 
-        // Let's rely on `currentActive.getScaledWidth()` BUT we need to know what it was *before* we called setSrc.
-        // We captured `currentScaleX`. And we assume previous natural width was 200 (since we generate 200x200).
-        // If previous natural width was different, we might drift. 
-        // But we always generate 200x200 here.
+      qrObject.set({
+        scaleX: newScale,
+        scaleY: newScale,
+        left: currentLeft,
+        top: currentTop,
+        angle: currentAngle,
+        qrContent: newContent,
+        qrModuleCount: moduleCount,
+        dirty: true
+      });
 
-        const previousVisualWidth = currentScaleX * (currentActive.width || 200); // approximate if width changed already?
-        // Wait, setSrc callback: `this` is the object. `this.width` is new width (200).
+      qrObject.setCoords();
+      canvas.renderAll();
 
-        let idealModuleSizePixels = Math.round(previousVisualWidth / moduleCount);
-        if (idealModuleSizePixels < 1) idealModuleSizePixels = 1;
-
-        const targetDimension = idealModuleSizePixels * moduleCount;
-        const newScale = targetDimension / currentActive.width;
-
-        currentActive.set({
-          scaleX: newScale,
-          scaleY: newScale,
-          left: currentLeft,
-          top: currentTop,
-          angle: currentAngle,
-          qrContent: newContent,
-          qrModuleCount: moduleCount,
-          dirty: true
-        });
-
-        currentActive.setCoords();
-        canvas.renderAll();
-
-        // Clean up temporary div
-        document.body.removeChild(tempDiv);
-      }); // end setSrc
-
-    }, 50); // inner timeout for rendering
-  }, 300); // debounce delay
+      // Clean up temporary div
+      document.body.removeChild(tempDiv);
+      if (onDone) onDone(true);
+    }); // end setSrc
+  }, 50); // inner timeout for rendering
 }
 
 function applyTextProperties() {
@@ -802,6 +883,8 @@ function updateTextControls() {
   const imageControlsGroup = document.getElementById('image-controls-group');
   const qrControlsGroup = document.getElementById('qr-controls-group');
   const objectSpecificControlsBox = document.getElementById('object-specific-controls');
+  const mergeFieldGroup = document.getElementById('merge-field-group');
+  const mergeFieldInput = document.getElementById('mergeFieldInput');
 
   // Groups that are object-specific styling controls
   const textStylingGroups = [fontStyleGroup, textFormatGroup];
@@ -813,6 +896,7 @@ function updateTextControls() {
   });
   if (imageStylingGroup) imageStylingGroup.style.display = 'none';
   if (qrControlsGroup) qrControlsGroup.style.display = 'none';
+  if (mergeFieldGroup) mergeFieldGroup.style.display = 'none';
 
   // The general controls (text input, alignment) are always visible based on the HTML structure.
 
@@ -824,6 +908,11 @@ function updateTextControls() {
       textStylingGroups.forEach(group => {
         if (group) group.style.display = 'flex';
       });
+
+      if (mergeFieldGroup && mergeFieldInput) {
+        mergeFieldGroup.style.display = 'block';
+        mergeFieldInput.value = activeObject.mergeField || '';
+      }
 
       const effectiveFontSize = Math.round(activeObject.fontSize * activeObject.scaleY);
       fontSizeInput.value = effectiveFontSize;
@@ -843,6 +932,11 @@ function updateTextControls() {
         // Show QR controls ONLY when QR code is selected
         if (qrControlsGroup) {
           qrControlsGroup.style.display = 'flex';
+
+          if (mergeFieldGroup && mergeFieldInput) {
+            mergeFieldGroup.style.display = 'block';
+            mergeFieldInput.value = activeObject.mergeField || '';
+          }
 
           const content = activeObject.qrContent || '';
 
@@ -939,6 +1033,11 @@ function updateTextControls() {
         if (imageStylingGroup) imageStylingGroup.style.display = 'flex';
         // Make sure QR controls are hidden
         if (qrControlsGroup) qrControlsGroup.style.display = 'none';
+
+        if (mergeFieldGroup && mergeFieldInput) {
+          mergeFieldGroup.style.display = 'block';
+          mergeFieldInput.value = activeObject.mergeField || '';
+        }
 
         if (ditheringAlgorithmSelect) {
           if (activeObject.ditheringAlgorithm) {
@@ -1126,8 +1225,106 @@ window.fabricEditor = {
 
   getPaddingBounds: function () {
     return getPaddingBounds();
+  },
+
+  showAlignmentGuides: function () {
+    showAlignmentTestGuides();
+  },
+
+  hideAlignmentGuides: function () {
+    hideAlignmentTestGuides();
+  },
+
+  // Returns every canvas object tagged with a merge field name, for batch/mail-merge printing.
+  getMergeFieldObjects: function () {
+    return canvas.getObjects()
+      .filter(obj => obj.mergeField)
+      .map(obj => ({
+        object: obj,
+        mergeField: obj.mergeField,
+        isQRCode: !!obj.isQRCode,
+        isImage: !!(obj.type === 'image' && !obj.isQRCode)
+      }));
+  },
+
+  // Regenerates a QR object's image for new content (async - QR generation takes a moment).
+  setQRObjectContent: function (qrObject, newContent, onDone) {
+    setQRObjectContent(qrObject, newContent, onDone);
+  },
+
+  // Swaps a plain image object's source for new content (async - image load + dithering).
+  setImageObjectContent: function (imageObject, newSrc, onDone) {
+    setImageObjectContent(imageObject, newSrc, onDone);
+  },
+
+  // Serializes the current label (objects + dimensions + padding) for saving/exporting.
+  exportLabelData: function () {
+    return exportLabelData();
+  },
+
+  // Restores a previously exported label, replacing the current canvas contents.
+  importLabelData: function (data, onDone) {
+    importLabelData(data, onDone);
+  },
+
+  // Toggles whether objects may be moved/scaled past the padding bounds (and the
+  // canvas edge itself), for deliberate bleed/off-label printing.
+  setAllowBleed: function (allow) {
+    allowBleed = !!allow;
   }
 };
+
+// Custom fabric object properties that must survive save/export. Everything else
+// (position, scale, text, colors, etc.) is already handled by fabric's default serializer.
+const LABEL_CUSTOM_PROPS = [
+  'mergeField', 'isQRCode', 'qrContent', 'qrModuleCount', 'isUploadedImage',
+  'originalImageDataURL', 'ditheringAlgorithm', 'originalWidth', 'originalHeight',
+  'lockUniScaling'
+];
+
+// Serializes the current label (canvas objects + dimensions + padding) into a plain
+// object suitable for JSON.stringify, used for both localStorage saves and file export.
+function exportLabelData() {
+  return {
+    version: 1,
+    canvasWidth: canvas.getWidth(),
+    canvasHeight: canvas.getHeight(),
+    padding: {
+      top: paddingState.top,
+      bottom: paddingState.bottom,
+      left: paddingState.left,
+      right: paddingState.right
+    },
+    fabricJSON: canvas.toJSON(LABEL_CUSTOM_PROPS)
+  };
+}
+
+// Restores a label previously produced by exportLabelData(), replacing canvas contents.
+function importLabelData(data, onDone) {
+  if (!data || !data.fabricJSON) {
+    if (onDone) onDone(false);
+    return;
+  }
+
+  if (typeof data.canvasWidth === 'number' && typeof data.canvasHeight === 'number') {
+    window.fabricEditor.updateCanvasSize(data.canvasWidth, data.canvasHeight);
+  }
+  if (data.padding) {
+    window.fabricEditor.setPadding(
+      data.padding.top || 0,
+      data.padding.bottom || 0,
+      data.padding.left || 0,
+      data.padding.right || 0
+    );
+  }
+
+  canvas.loadFromJSON(data.fabricJSON, () => {
+    updatePaddingGuides();
+    canvas.discardActiveObject();
+    canvas.renderAll();
+    if (onDone) onDone(true);
+  });
+}
 
 // Helper function to get padding bounds in pixels
 function getPaddingBounds() {
@@ -1222,4 +1419,66 @@ function updatePaddingGuides() {
     canvas.add(paddingGuides.right);
     canvas.sendToBack(paddingGuides.right);
   }
+}
+
+// Draw solid black crop marks (canvas border + padding-bounds border + center crosshair)
+// so an alignment test print physically shows where the padding bounds land on the label.
+// Unlike the faint red paddingGuides above, these are meant to actually print as black ink.
+function showAlignmentTestGuides() {
+  hideAlignmentTestGuides();
+
+  const canvasWidth = canvas.getWidth();
+  const canvasHeight = canvas.getHeight();
+  const bounds = getPaddingBounds();
+
+  const guideOptions = {
+    stroke: '#000000',
+    strokeWidth: 1,
+    fill: 'transparent',
+    selectable: false,
+    evented: false,
+    excludeFromExport: true,
+    isAlignmentGuide: true
+  };
+
+  // Full canvas / label edge
+  alignmentTestGuides.push(new fabric.Rect({
+    left: 0,
+    top: 0,
+    width: canvasWidth,
+    height: canvasHeight,
+    ...guideOptions
+  }));
+
+  // Padding content bounds
+  alignmentTestGuides.push(new fabric.Rect({
+    left: bounds.left,
+    top: bounds.top,
+    width: bounds.right - bounds.left,
+    height: bounds.bottom - bounds.top,
+    ...guideOptions
+  }));
+
+  // Center crosshair within the padding bounds
+  const centerX = bounds.left + (bounds.right - bounds.left) / 2;
+  const centerY = bounds.top + (bounds.bottom - bounds.top) / 2;
+  const crosshairSize = Math.min(bounds.right - bounds.left, bounds.bottom - bounds.top, 20) / 2;
+
+  alignmentTestGuides.push(new fabric.Line(
+    [centerX - crosshairSize, centerY, centerX + crosshairSize, centerY],
+    { ...guideOptions }
+  ));
+  alignmentTestGuides.push(new fabric.Line(
+    [centerX, centerY - crosshairSize, centerX, centerY + crosshairSize],
+    { ...guideOptions }
+  ));
+
+  alignmentTestGuides.forEach(guide => canvas.add(guide));
+  canvas.renderAll();
+}
+
+function hideAlignmentTestGuides() {
+  alignmentTestGuides.forEach(guide => canvas.remove(guide));
+  alignmentTestGuides = [];
+  canvas.renderAll();
 }

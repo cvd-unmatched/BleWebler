@@ -5,12 +5,27 @@ class MarklifeP12Printer extends PrinterBase {
     this.charUUID = "0000ff02-0000-1000-8000-00805f9b34fb";
   }
 
+  // Feed sequence used to advance segmented (gap-fed) label stock to the next label boundary.
+  // Sent after every print on segmented paper. Also exposed standalone as feedToNextLabel()
+  // so it can be triggered manually to re-sync the printer's gap position (e.g. after a tear),
+  // since the printer has no way to know where a label starts until it's fed past a gap once.
+  _segmentedFeedPackets() {
+    return [
+      Uint8Array.from([0x1d, 0x0c, 0x10]),
+      Uint8Array.from([0xff, 0xf1, 0x45]),
+      Uint8Array.from([0x10, 0xff, 0x40]),
+      Uint8Array.from([0x10, 0xff, 0x40]),
+    ];
+  }
+
   async print(device, bitmap, segmentedPaper = false) {
     const canvasWidth = bitmap[0].length;
     const payload = this.bitmapToPacket(bitmap, canvasWidth);
 
     try {
+      log(`Print: connecting to ${device.name}...`);
       const characteristic = await this.connect(device);
+      log("Print: connected. Preparing packets " + (segmentedPaper ? "(segmented/gap-fed paper)" : "(infinite/continuous paper)") + "...");
 
       var packets = [
         Uint8Array.from([0x10, 0xff, 0x40]), // initialization packet
@@ -26,12 +41,7 @@ class MarklifeP12Printer extends PrinterBase {
       ];
 
       if (segmentedPaper) {
-        packets.push(
-          Uint8Array.from([0x1d, 0x0c, 0x10]),
-          Uint8Array.from([0xff, 0xf1, 0x45]),
-          Uint8Array.from([0x10, 0xff, 0x40]),
-          Uint8Array.from([0x10, 0xff, 0x40]),
-        )
+        packets.push(...this._segmentedFeedPackets());
       } else {
         packets.push(
           Uint8Array.from([0x1b, 0x4a, 0x5B]), // purge
@@ -39,12 +49,33 @@ class MarklifeP12Printer extends PrinterBase {
         )
       }
 
+      log(`Print: sending init + bitmap (${bitmap.length}x${canvasWidth}px) + ${segmentedPaper ? "segmented feed" : "purge"} packets...`);
       await this.sendPackets(characteristic, packets);
 
       log("Print successful!");
     } catch (err) {
       log("Print error: " + err);
       console.error("Print error:", err);
+    }
+  }
+
+  // Manually re-send the segmented feed sequence without printing anything first.
+  // Intended as a "re-sync" action: press after a tear or after reconnecting, on gap-fed
+  // (segmented) label stock, so the printer locates the next label boundary before you print.
+  // NOTE: this reuses the exact byte sequence already proven in print()'s segmented-paper
+  // path -- it does not send any new/unverified protocol bytes. Whether this alone is
+  // sufficient to fix first-label misalignment on real hardware is unconfirmed; the logging
+  // here is meant to help diagnose that on an actual printer.
+  async feedToNextLabel(device) {
+    try {
+      log(`Re-sync: connecting to ${device.name}...`);
+      const characteristic = await this.connect(device);
+      log("Re-sync: connected. Sending feed-to-next-label sequence (4 packets)...");
+      await this.sendPackets(characteristic, this._segmentedFeedPackets());
+      log("Re-sync: feed sequence sent. Check the physical label position before printing.");
+    } catch (err) {
+      log("Re-sync failed: " + err);
+      console.error("Re-sync failed:", err);
     }
   }
 
