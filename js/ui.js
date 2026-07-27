@@ -258,56 +258,75 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  if (batchParseBtn) {
-    batchParseBtn.addEventListener("click", () => {
-      const csvText = batchCsvText.value.trim();
-      if (!csvText) {
-        alert("Paste CSV data or upload a CSV file first.");
-        return;
-      }
+  // Parses whatever's currently in the CSV textarea and renders the match preview.
+  // Pulled out of the click handler so the URL-based hand-off (?csv=...) can trigger
+  // the exact same preview automatically, without duplicating this logic.
+  function parseBatchCsvAndPreview() {
+    const csvText = batchCsvText.value.trim();
+    if (!csvText) {
+      alert("Paste CSV data or upload a CSV file first.");
+      return;
+    }
 
-      const { headers, rows } = parseCSV(csvText);
-      if (rows.length === 0) {
-        alert("Couldn't find any data rows. Make sure the first line is a header row.");
-        return;
-      }
+    const { headers, rows } = parseCSV(csvText);
+    if (rows.length === 0) {
+      alert("Couldn't find any data rows. Make sure the first line is a header row.");
+      return;
+    }
 
-      const mergeFields = window.fabricEditor ? window.fabricEditor.getMergeFieldObjects() : [];
-      const mergeFieldNames = [...new Set(mergeFields.map(f => f.mergeField))];
-      const matched = mergeFieldNames.filter(name => headers.includes(name));
-      const unmatchedFields = mergeFieldNames.filter(name => !headers.includes(name));
-      const unusedColumns = headers.filter(h => !mergeFieldNames.includes(h));
-      const imageFieldNames = [...new Set(mergeFields.filter(f => f.isImage).map(f => f.mergeField))];
+    const mergeFields = window.fabricEditor ? window.fabricEditor.getMergeFieldObjects() : [];
+    const mergeFieldNames = [...new Set(mergeFields.map(f => f.mergeField))];
+    const matched = mergeFieldNames.filter(name => headers.includes(name));
+    const unmatchedFields = mergeFieldNames.filter(name => !headers.includes(name));
+    const unusedColumns = headers.filter(h => !mergeFieldNames.includes(h));
+    const imageFieldNames = [...new Set(mergeFields.filter(f => f.isImage).map(f => f.mergeField))];
 
-      parsedBatchRows = rows;
+    parsedBatchRows = rows;
 
-      batchPreviewSummary.textContent = `Found ${rows.length} row(s) with columns: ${headers.join(", ")}.`;
+    batchPreviewSummary.textContent = `Found ${rows.length} row(s) with columns: ${headers.join(", ")}.`;
 
-      let warnings = "";
-      if (mergeFieldNames.length === 0) {
-        warnings += "<p>No canvas objects are tagged with a merge field name yet -- select a text, image, or QR object and set one in its controls.</p>";
+    let warnings = "";
+    if (mergeFieldNames.length === 0) {
+      warnings += "<p>No canvas objects are tagged with a merge field name yet -- select a text, image, or QR object and set one in its controls.</p>";
+    }
+    if (matched.length > 0) {
+      warnings += `<p>Matched fields: ${matched.join(", ")}</p>`;
+    }
+    if (unmatchedFields.length > 0) {
+      warnings += `<p>Canvas merge fields with no matching CSV column (will be left unchanged): ${unmatchedFields.join(", ")}</p>`;
+    }
+    if (unusedColumns.length > 0) {
+      warnings += `<p>CSV columns not used by any canvas object: ${unusedColumns.join(", ")}</p>`;
+    }
+    imageFieldNames.filter(name => headers.includes(name)).forEach(name => {
+      const sample = rows[0] ? rows[0][name] : "";
+      if (sample && !sample.startsWith("data:")) {
+        warnings += `<p>Field "${name}" tags an image object and its values look like URLs, not data: URIs -- the image host must allow cross-origin requests (CORS) or printing that row will fail. A data: URI avoids this entirely.</p>`;
       }
-      if (matched.length > 0) {
-        warnings += `<p>Matched fields: ${matched.join(", ")}</p>`;
-      }
-      if (unmatchedFields.length > 0) {
-        warnings += `<p>Canvas merge fields with no matching CSV column (will be left unchanged): ${unmatchedFields.join(", ")}</p>`;
-      }
-      if (unusedColumns.length > 0) {
-        warnings += `<p>CSV columns not used by any canvas object: ${unusedColumns.join(", ")}</p>`;
-      }
-      imageFieldNames.filter(name => headers.includes(name)).forEach(name => {
-        const sample = rows[0] ? rows[0][name] : "";
-        if (sample && !sample.startsWith("data:")) {
-          warnings += `<p>Field "${name}" tags an image object and its values look like URLs, not data: URIs -- the image host must allow cross-origin requests (CORS) or printing that row will fail. A data: URI avoids this entirely.</p>`;
-        }
-      });
-      batchFieldWarnings.innerHTML = warnings;
-
-      batchPreview.style.display = "block";
-      batchPrintConfirmBtn.style.display = matched.length > 0 ? "block" : "none";
-      batchPrintConfirmBtn.textContent = `Print ${rows.length} Label${rows.length === 1 ? "" : "s"}`;
     });
+    batchFieldWarnings.innerHTML = warnings;
+
+    batchPreview.style.display = "block";
+    batchPrintConfirmBtn.style.display = matched.length > 0 ? "block" : "none";
+    batchPrintConfirmBtn.textContent = `Print ${rows.length} Label${rows.length === 1 ? "" : "s"}`;
+  }
+
+  if (batchParseBtn) {
+    batchParseBtn.addEventListener("click", parseBatchCsvAndPreview);
+  }
+
+  // Bulk data hand-off for external integrations: ?csv=<url-encoded CSV> opens the
+  // Batch Print modal with the data already parsed and previewed, so linking in from
+  // another program goes straight to "review and print all" instead of a manual
+  // copy-paste/upload step. Mirrors the single-item ?text=/?qr= hand-off, for bulk.
+  const urlCsvParams = new URLSearchParams(window.location.search);
+  const urlCsv = urlCsvParams.get('csv');
+  if (urlCsv && batchCsvText && batchPrintModal) {
+    batchCsvText.value = urlCsv;
+    batchPreview.style.display = "none";
+    batchPrintConfirmBtn.style.display = "none";
+    batchPrintModal.classList.add("show");
+    parseBatchCsvAndPreview();
   }
 
   if (batchPrintConfirmBtn) {
