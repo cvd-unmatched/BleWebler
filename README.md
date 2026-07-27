@@ -83,33 +83,37 @@ To try the live-hosted version instead, see [**Try it here!**](https://josb25.gi
 
 Since these BLE label printers don't show up in a normal OS print dialog (no driver, Bluetooth-only), the way to print from another program is to have it open BleWebler in a browser tab with the label's content in the URL, then a person clicks "Print!" once. Web Bluetooth requires a user gesture to connect, so this can't be made fully automatic, one click is the floor.
 
-**URL parameters:**
-- `printer`: index into the supported printer list: `0` = Marklife P12, `1` = Marklife P15, `2` = L13, `3` = Pristar P15 (see `js/printers_supported.js` for the authoritative list/order).
-- `width`, `height`: label size in mm (e.g. `40`, `12`).
-- `infinite`: `true` for continuous roll paper, omit or `false` for fixed-length labels.
-- `paddingTop`, `paddingBottom`, `paddingLeft`, `paddingRight`: margins in mm, all optional (default `0`).
-- `text`: plain text content. Fills the first text object already on the canvas, or creates one if there isn't one yet.
-- `qr`: QR code content (a URL, or any string). Fills the first QR object already on the canvas, or creates one if there isn't one yet.
+### One-time setup: design and save a template
 
-**Example:**
+The field schema has no fixed defaults, it's entirely defined by what you tag inside BleWebler. Do this once:
+1. Design the label layout (add text/QR/image objects, position and style them).
+2. Tag each object with a **merge field name** (in its object controls). The name you choose is the column/param name your export or link must use later, exactly, case-sensitively.
+3. Save it as a Saved Label. The name you give it there is what `label=` below will reference.
+
+A ready-made example lives at [`examples/inventory-label.json`](examples/inventory-label.json): a text object tagged `name`, a text object tagged `location`, and a QR object tagged `qr`, sized for a 40mm×12mm P15 label. Import it via Saved Labels → "Import from file" and it's saved under the name `inventory-label`, matching the examples below directly.
+
+### `label=`: pin to a specific template
+
+Without this, any URL-based content hand-off silently depends on "whatever's currently on screen" in that browser, which breaks the moment someone changes the design for an unrelated reason. `label=<saved label name>` (case-insensitive) loads that exact Saved Label before applying anything else, so the schema stays pinned regardless of what was on screen before. If the name isn't found, BleWebler logs a console warning and falls back to whatever's currently on screen rather than failing silently.
+
+### Printing a single label
+
+Every URL parameter that isn't one of BleWebler's own settings (`printer`, `width`, `height`, `infinite`, `paddingTop/Bottom/Left/Right`, `label`, `csv`) is treated as a merge field value, matched by an object's merge field tag, e.g. `name`, `location`, `qr` for the example template above.
+
+**Example**, using the `inventory-label` template from above:
 ```
-https://your-blewebler-url/?printer=1&width=40&height=12&text=Widget%2042&qr=https%3A%2F%2Fexample.com%2Fitem%2F42
+https://your-blewebler-url/?printer=1&width=40&height=12&label=inventory-label&name=Widget%2042&location=Home%20%3E%20Office%20%3E%20Bin%205&qr=https%3A%2F%2Fexample.com%2Fitem%2F42
 ```
 
-That loads a Marklife P15 label at 40mm×12mm, with the text "Widget 42" and a QR code linking to `https://example.com/item/42`, ready for a person to click "Print!".
+(A legacy `text=`/`qr=` shorthand also exists for when no template is tagged at all: it fills the first plain text object and first QR object on the canvas, or creates them if none exist. It only applies to fields with no matching merge tag, so it won't conflict with a tagged `qr` field like the one above.)
 
 ### Printing many labels at once (bulk export)
 
-For a whole batch (e.g. an inventory export) rather than one label at a time, this builds on BleWebler's existing merge-field system, which needs a one-time setup in BleWebler itself:
-1. Design the label layout once (add a text object and/or QR object, position and style them).
-2. Tag each object with a **merge field name** (in its object controls) matching a column name your export will use, e.g. `name` and `qr_url`.
-3. Save this as a Saved Label so the layout is remembered.
-
-**Recommended: download a real CSV file, then upload it.** Have your program generate and download a normal CSV (header row first, one column per merge field), then open BleWebler's **Batch Print** modal and use its file upload, it parses and previews automatically the moment a file is selected, no separate button click needed. No URL-length limit, no CORS to configure, nothing sitting in a URL bar or server log, just a plain file.
+**Recommended: download a real CSV file, then upload it.** Have your program generate and download a normal CSV (header row first, one column per merge field, comma-delimited, values matched by header name so column order doesn't matter), then open BleWebler's **Batch Print** modal and use its file upload, it parses and previews automatically the moment a file is selected, no separate button click needed. No URL-length limit, no CORS to configure, nothing sitting in a URL bar or server log, just a plain file. The QR column's value is used verbatim as the QR payload (a bare URL, or any string), it is not built from separate sub-fields.
 
 There's also a `csv` URL parameter (URL-encoded CSV data, header row first) that opens Batch Print pre-loaded and pre-parsed automatically, e.g.:
 ```
-https://your-blewebler-url/?printer=1&width=40&height=12&csv=name%2Cqr_url%0AWidget%2042%2Chttps%3A%2F%2Fexample.com%2F42%0AWidget%2099%2Chttps%3A%2F%2Fexample.com%2F99
+https://your-blewebler-url/?printer=1&width=40&height=12&csv=name%2Clocation%2Cqr%0AWidget%2042%2CHome%20%3E%20Office%2Chttps%3A%2F%2Fexample.com%2F42
 ```
 This is fine for quick tests or small lists, but the data lives directly in the URL, so it inherits browser/server URL-length limits and shows up in browser history and server access logs. For a real export, the file upload above is the better default.
 

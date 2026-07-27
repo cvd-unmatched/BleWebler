@@ -701,6 +701,49 @@ function applyURLLabelContent(content) {
   canvas.renderAll();
 }
 
+// Applies named field values to whatever's on the canvas right now, matched by each
+// object's merge field tag (the same substitution used by CSV batch printing, just
+// for a single set of values instead of one row per print). Used by the URL-based
+// integration once a specific template has been loaded via applyURLLabelContent's
+// sibling, the label= lookup in ui.js: every non-reserved URL param is treated as a
+// field name/value pair and applied here. onDone fires once every matched object has
+// finished updating (QR/image updates are async).
+function applyURLFieldContent(fieldValues, onDone) {
+  if (!fieldValues) {
+    if (onDone) onDone();
+    return;
+  }
+
+  const targets = canvas.getObjects().filter(obj => obj.mergeField && Object.prototype.hasOwnProperty.call(fieldValues, obj.mergeField));
+
+  if (targets.length === 0) {
+    if (onDone) onDone();
+    return;
+  }
+
+  let remaining = targets.length;
+  function settle() {
+    remaining--;
+    if (remaining <= 0) {
+      canvas.discardActiveObject();
+      canvas.renderAll();
+      if (onDone) onDone();
+    }
+  }
+
+  targets.forEach(obj => {
+    const value = fieldValues[obj.mergeField];
+    if (obj.isQRCode) {
+      setQRObjectContent(obj, value, settle);
+    } else if (obj.type === 'image') {
+      setImageObjectContent(obj, value, settle);
+    } else {
+      obj.set({ text: value });
+      settle();
+    }
+  });
+}
+
 // Function to update QR code content while maintaining position and size
 function updateQRCodeFromInput() {
   const activeObject = canvas.getActiveObject();
@@ -1321,6 +1364,12 @@ window.fabricEditor = {
   // and have BleWebler ready to print without the user re-typing anything.
   applyURLLabelContent: function (content) {
     applyURLLabelContent(content);
+  },
+
+  // Applies named field values (matched by merge field tag) to whatever's on the
+  // canvas right now, e.g. after a label= template has been loaded.
+  applyURLFieldContent: function (fieldValues, onDone) {
+    applyURLFieldContent(fieldValues, onDone);
   }
 };
 

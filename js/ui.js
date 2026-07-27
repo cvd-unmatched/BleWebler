@@ -901,9 +901,69 @@ document.addEventListener("DOMContentLoaded", () => {
     const urlPaddingRight = urlParams.get('paddingRight');
     // Label content hand-off for external integrations (e.g. another app linking in
     // a ready-to-print label): ?text=...&qr=... fills the first matching text/QR
-    // object already on the canvas, or creates one if none exists yet.
+    // object already on the canvas, or creates one if none exists yet. Used only as
+    // a fallback when no merge-tagged template applies (see below).
     const urlText = urlParams.get('text');
     const urlQr = urlParams.get('qr');
+
+    // ?label=<saved label name> loads a specific template by name (case-insensitive)
+    // before applying content, so an external integration's field schema stays pinned
+    // to a known template instead of silently depending on whatever's currently open.
+    // Every URL param that isn't one of BleWebler's own settings below is treated as
+    // a merge field value, matched by an object's merge field tag: e.g.
+    // ?label=inventory-label&name=...&location=...&qr=...
+    const urlLabel = urlParams.get('label');
+    const RESERVED_URL_PARAMS = new Set([
+      'printer', 'width', 'height', 'infinite',
+      'paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight',
+      'label', 'csv'
+    ]);
+    const urlFieldParams = {};
+    urlParams.forEach((value, key) => {
+      if (!RESERVED_URL_PARAMS.has(key)) {
+        urlFieldParams[key] = value;
+      }
+    });
+
+    function applyLabelTemplateAndContent() {
+      function applyFieldsThenLegacyFallback() {
+        const afterFields = () => {
+          // text=/qr= only apply here if nothing on the (possibly just-loaded)
+          // template is actually tagged with that field name -- otherwise the
+          // generic field pass above already handled it via the merge field tag.
+          const tagged = (window.fabricEditor && window.fabricEditor.getMergeFieldObjects) ? window.fabricEditor.getMergeFieldObjects() : [];
+          const hasTextField = tagged.some(f => f.mergeField === 'text');
+          const hasQrField = tagged.some(f => f.mergeField === 'qr');
+          const fallbackContent = {};
+          if (urlText !== null && !hasTextField) fallbackContent.text = urlText;
+          if (urlQr !== null && !hasQrField) fallbackContent.qr = urlQr;
+          if ((fallbackContent.text !== undefined || fallbackContent.qr !== undefined) && window.fabricEditor && window.fabricEditor.applyURLLabelContent) {
+            window.fabricEditor.applyURLLabelContent(fallbackContent);
+          }
+        };
+
+        if (Object.keys(urlFieldParams).length > 0 && window.fabricEditor && window.fabricEditor.applyURLFieldContent) {
+          window.fabricEditor.applyURLFieldContent(urlFieldParams, afterFields);
+        } else {
+          afterFields();
+        }
+      }
+
+      if (urlLabel) {
+        const match = getSavedLabels().find(l => (l.name || '').toLowerCase() === urlLabel.toLowerCase());
+        if (match && window.fabricEditor && window.fabricEditor.importLabelData) {
+          window.fabricEditor.importLabelData(match, (ok) => {
+            if (!ok) {
+              console.warn(`BleWebler: saved label "${urlLabel}" failed to load.`);
+            }
+            applyFieldsThenLegacyFallback();
+          });
+          return;
+        }
+        console.warn(`BleWebler: no saved label named "${urlLabel}" found in this browser. Using whatever's currently on the canvas instead.`);
+      }
+      applyFieldsThenLegacyFallback();
+    }
 
     // Infinite Paper Checkbox Logic
     if (infinitePaperCheckbox && paperWidthInput && paperWidthContainer) {
@@ -957,9 +1017,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         applyPrinterSettings(pIndex, w, h, urlInfinite, pTop, pBottom, pLeft, pRight);
 
-        if ((urlText !== null || urlQr !== null) && window.fabricEditor && window.fabricEditor.applyURLLabelContent) {
-          window.fabricEditor.applyURLLabelContent({ text: urlText, qr: urlQr });
-        }
+        applyLabelTemplateAndContent();
       } else {
         // Invalid params, show modal
         startupModal.classList.add("show");
