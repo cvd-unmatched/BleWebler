@@ -876,6 +876,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const urlPaddingBottom = urlParams.get('paddingBottom');
     const urlPaddingLeft = urlParams.get('paddingLeft');
     const urlPaddingRight = urlParams.get('paddingRight');
+    // Label content hand-off for external integrations (e.g. another app linking in
+    // a ready-to-print label): ?text=...&qr=... fills the first matching text/QR
+    // object already on the canvas, or creates one if none exists yet.
+    const urlText = urlParams.get('text');
+    const urlQr = urlParams.get('qr');
 
     // Infinite Paper Checkbox Logic
     if (infinitePaperCheckbox && paperWidthInput && paperWidthContainer) {
@@ -928,6 +933,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (paddingRightInput) paddingRightInput.value = pRight;
 
         applyPrinterSettings(pIndex, w, h, urlInfinite, pTop, pBottom, pLeft, pRight);
+
+        if ((urlText !== null || urlQr !== null) && window.fabricEditor && window.fabricEditor.applyURLLabelContent) {
+          window.fabricEditor.applyURLLabelContent({ text: urlText, qr: urlQr });
+        }
       } else {
         // Invalid params, show modal
         startupModal.classList.add("show");

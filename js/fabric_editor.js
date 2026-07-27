@@ -501,8 +501,11 @@ function applyDitheringToImage(obj) {
   tempImage.src = obj.originalImageDataURL;
 }
 
-function addTextToCanvas() {
-  const textContent = 'Type here';
+// initialText/skipEdit let callers (e.g. URL-based label prefill) create a populated
+// text object without forcing it into on-screen edit mode. Both are optional; the
+// existing onclick="addTextToCanvas()" callers are unaffected.
+function addTextToCanvas(initialText, skipEdit) {
+  const textContent = (initialText !== undefined && initialText !== null) ? initialText : 'Type here';
 
   const bounds = getPaddingBounds();
   const contentWidth = bounds.right - bounds.left;
@@ -525,11 +528,14 @@ function addTextToCanvas() {
   });
   canvas.add(newText);
   canvas.setActiveObject(newText);
-  newText.enterEditing();
-  newText.selectAll();
+  if (!skipEdit) {
+    newText.enterEditing();
+    newText.selectAll();
+  }
   canvas.renderAll();
   updateTextControls();
   canvas.renderAll();
+  return newText;
 }
 
 function deleteSelectedObject() {
@@ -541,17 +547,22 @@ function deleteSelectedObject() {
   }
 }
 
-function addQRCodeToCanvas() {
+// initialContent/onDone let callers (e.g. URL-based label prefill) create a QR object
+// with specific content directly, instead of creating a default one and re-editing it
+// (which would regenerate the QR image twice). Both are optional; the existing
+// onclick="addQRCodeToCanvas()" callers are unaffected.
+function addQRCodeToCanvas(initialContent, onDone) {
   // Check if QRCode library is loaded
   if (typeof QRCode === 'undefined') {
     alert("QR code library failed to load. Please refresh the page.");
     console.error('QRCode library not available');
+    if (onDone) onDone(false);
     return;
   }
 
-  // Prompt user for QR code content
-  // Default content for new QR code
-  const qrContent = "https://example.com";
+  const qrContent = (initialContent !== undefined && initialContent !== null && initialContent !== '')
+    ? initialContent
+    : "https://example.com";
 
   // Create a temporary container for QR code generation
   const tempDiv = document.createElement('div');
@@ -597,6 +608,7 @@ function addQRCodeToCanvas() {
       } else {
         alert("Failed to generate QR code image.");
         document.body.removeChild(tempDiv);
+        if (onDone) onDone(false);
         return;
       }
     }
@@ -652,10 +664,41 @@ function addQRCodeToCanvas() {
 
       // Clean up temporary div
       document.body.removeChild(tempDiv);
+      if (onDone) onDone(true, img);
     }, {
       crossOrigin: 'anonymous'
     });
   }, 100);
+}
+
+// Prefills the current label design from external content (used by the URL-based
+// integration: ?text=...&qr=... in the page URL). Updates the first matching text/QR
+// object already on the canvas, or creates one if none exists yet, so a linked-to
+// design can be reused across prints and a blank canvas still works the first time.
+function applyURLLabelContent(content) {
+  if (!content) return;
+
+  if (content.text !== undefined && content.text !== null) {
+    const existingText = canvas.getObjects().find(o => o.type === 'i-text');
+    if (existingText) {
+      existingText.set({ text: content.text });
+      canvas.renderAll();
+    } else {
+      addTextToCanvas(content.text, true); // skipEdit: don't force on-screen edit mode
+    }
+  }
+
+  if (content.qr !== undefined && content.qr !== null && content.qr !== '') {
+    const existingQR = canvas.getObjects().find(o => o.isQRCode);
+    if (existingQR) {
+      setQRObjectContent(existingQR, content.qr);
+    } else {
+      addQRCodeToCanvas(content.qr);
+    }
+  }
+
+  canvas.discardActiveObject();
+  canvas.renderAll();
 }
 
 // Function to update QR code content while maintaining position and size
@@ -1271,6 +1314,13 @@ window.fabricEditor = {
   // canvas edge itself), for deliberate bleed/off-label printing.
   setAllowBleed: function (allow) {
     allowBleed = !!allow;
+  },
+
+  // Prefills the current label from external content: { text, qr }. Used by the
+  // URL-based integration (?text=...&qr=...) so another program can open a link
+  // and have BleWebler ready to print without the user re-typing anything.
+  applyURLLabelContent: function (content) {
+    applyURLLabelContent(content);
   }
 };
 

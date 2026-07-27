@@ -79,6 +79,29 @@ To try the live-hosted version instead, see [**Try it here!**](https://josb25.gi
 
 ---
 
+## Linking In From Another App
+
+Since these BLE label printers don't show up in a normal OS print dialog (no driver, Bluetooth-only), the way to print from another program is to have it open BleWebler in a browser tab with the label's content in the URL, then a person clicks "Print!" once. Web Bluetooth requires a user gesture to connect, so this can't be made fully automatic, one click is the floor.
+
+**URL parameters:**
+- `printer` — index into the supported printer list: `0` = Marklife P12, `1` = Marklife P15, `2` = L13, `3` = Pristar P15 (see `js/printers_supported.js` for the authoritative list/order).
+- `width`, `height` — label size in mm (e.g. `40`, `12`).
+- `infinite` — `true` for continuous roll paper, omit or `false` for fixed-length labels.
+- `paddingTop`, `paddingBottom`, `paddingLeft`, `paddingRight` — margins in mm, all optional (default `0`).
+- `text` — plain text content. Fills the first text object already on the canvas, or creates one if there isn't one yet.
+- `qr` — QR code content (a URL, or any string). Fills the first QR object already on the canvas, or creates one if there isn't one yet.
+
+**Example:**
+```
+https://your-blewebler-url/?printer=1&width=40&height=12&text=Widget%2042&qr=https%3A%2F%2Fexample.com%2Fitem%2F42
+```
+
+That loads a Marklife P15 label at 40mm×12mm, with the text "Widget 42" and a QR code linking to `https://example.com/item/42`, ready for a person to click "Print!".
+
+**Where to host it**: this repo isn't currently published anywhere with these newer features (the [live-hosted link](https://josb25.github.io/BleWebler/) above is the upstream project's own version, without this URL-integration or the other changes in this fork). To get a stable URL to link to, either enable GitHub Pages on this fork (`cvd-unmatched/BleWebler`) pointing at a chosen branch, or serve it from your own infrastructure alongside the other app.
+
+---
+
 ## Known Issues / In Progress
 
 ### Printer gap-sync on the first label after a tear (unverified fix, needs hardware testing)
