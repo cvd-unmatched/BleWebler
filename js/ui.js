@@ -253,6 +253,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const reader = new FileReader();
       reader.onload = (event) => {
         batchCsvText.value = event.target.result;
+        // Parse immediately so uploading a file goes straight to the preview,
+        // matching a real file as the primary bulk workflow: no length limits,
+        // no CORS, nothing sitting in a URL or server log.
+        parseBatchCsvAndPreview();
       };
       reader.readAsText(file);
     });

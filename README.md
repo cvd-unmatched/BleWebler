@@ -100,21 +100,18 @@ That loads a Marklife P15 label at 40mm×12mm, with the text "Widget 42" and a Q
 
 ### Printing many labels at once (bulk export)
 
-For printing a whole batch (e.g. an inventory export) rather than one label at a time, use `csv` instead of `text`/`qr`:
-
-- `csv`: URL-encoded CSV data, header row first. This opens the **Batch Print** modal automatically with the data already parsed and previewed, ready for a person to review and click "Print N Labels" once.
-
-This builds on BleWebler's existing merge-field system, so it needs a one-time setup in BleWebler itself:
+For a whole batch (e.g. an inventory export) rather than one label at a time, this builds on BleWebler's existing merge-field system, which needs a one-time setup in BleWebler itself:
 1. Design the label layout once (add a text object and/or QR object, position and style them).
 2. Tag each object with a **merge field name** (in its object controls) matching a column name your export will use, e.g. `name` and `qr_url`.
 3. Save this as a Saved Label so the layout is remembered.
 
-After that, every link with a matching `csv` export prints straight from that template. Example (2 rows, columns `name` and `qr_url`):
+**Recommended: download a real CSV file, then upload it.** Have your program generate and download a normal CSV (header row first, one column per merge field), then open BleWebler's **Batch Print** modal and use its file upload, it parses and previews automatically the moment a file is selected, no separate button click needed. No URL-length limit, no CORS to configure, nothing sitting in a URL bar or server log, just a plain file.
+
+There's also a `csv` URL parameter (URL-encoded CSV data, header row first) that opens Batch Print pre-loaded and pre-parsed automatically, e.g.:
 ```
 https://your-blewebler-url/?printer=1&width=40&height=12&csv=name%2Cqr_url%0AWidget%2042%2Chttps%3A%2F%2Fexample.com%2F42%0AWidget%2099%2Chttps%3A%2F%2Fexample.com%2F99
 ```
-
-Note: CSV data lives directly in the URL, so very large exports (many hundreds of rows) may hit browser/server URL-length limits. For big datasets, page the export into smaller links, or have the person download the CSV and use the Batch Print modal's file upload instead of a URL.
+This is fine for quick tests or small lists, but the data lives directly in the URL, so it inherits browser/server URL-length limits and shows up in browser history and server access logs. For a real export, the file upload above is the better default.
 
 **Where to host it**: this repo isn't currently published anywhere with these newer features (the [live-hosted link](https://josb25.github.io/BleWebler/) above is the upstream project's own version, without this URL-integration or the other changes in this fork). To get a stable URL to link to, either enable GitHub Pages on this fork (`cvd-unmatched/BleWebler`) pointing at a chosen branch, or serve it from your own infrastructure alongside the other app.
 
