@@ -216,6 +216,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const batchPrintBtn = document.getElementById("batchPrintBtn");
   const batchPrintModal = document.getElementById("batchPrintModal");
   const closeBatchPrintModal = document.getElementById("closeBatchPrintModal");
+  const downloadCsvTemplateBtn = document.getElementById("downloadCsvTemplateBtn");
   const batchCsvFile = document.getElementById("batchCsvFile");
   const batchCsvText = document.getElementById("batchCsvText");
   const batchParseBtn = document.getElementById("batchParseBtn");
@@ -243,6 +244,43 @@ document.addEventListener("DOMContentLoaded", () => {
       if (e.target === batchPrintModal) {
         batchPrintModal.classList.remove("show");
       }
+    });
+  }
+
+  function csvEscape(value) {
+    const s = String(value == null ? "" : value);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  // Downloads a CSV containing just the header row (plus one example row taken from
+  // the current canvas content) matching whatever's tagged with a merge field right
+  // now, so an external integration doesn't have to guess the column names/format.
+  if (downloadCsvTemplateBtn) {
+    downloadCsvTemplateBtn.addEventListener("click", () => {
+      const fields = window.fabricEditor ? window.fabricEditor.getMergeFieldObjects() : [];
+      if (fields.length === 0) {
+        alert("No canvas objects are tagged with a merge field yet. Select a text, image, or QR object and set a merge field name in its controls first.");
+        return;
+      }
+
+      const fieldNames = [...new Set(fields.map(f => f.mergeField))];
+      const exampleRow = fieldNames.map(name => {
+        const field = fields.find(f => f.mergeField === name);
+        if (field.isQRCode) return field.object.qrContent || "https://example.com";
+        if (field.isImage) return "https://example.com/image.png (or a data: URI)";
+        return field.object.text || "";
+      });
+
+      const csvText = fieldNames.map(csvEscape).join(",") + "\n" + exampleRow.map(csvEscape).join(",") + "\n";
+      const blob = new Blob([csvText], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "blewebler-template.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     });
   }
 

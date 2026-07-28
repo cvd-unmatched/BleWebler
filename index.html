@@ -468,7 +468,12 @@
           header row of your CSV defines the field names. For image fields, use a <code>data:</code> URI where
           possible. External image URLs need CORS enabled on the host, or printing that row will fail.</p>
 
-        <div class="form-group">
+        <button id="downloadCsvTemplateBtn" class="btn btn-secondary btn-sm"
+          title="Downloads a CSV with the header row (and one example row) matching this label's current merge field tags">
+          Download CSV Template
+        </button>
+
+        <div class="form-group" style="margin-top: var(--spacing-md);">
           <label for="batchCsvFile">Upload CSV file:</label>
           <input type="file" id="batchCsvFile" accept=".csv,text/csv">
         </div>

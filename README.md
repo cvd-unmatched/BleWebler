@@ -109,6 +109,8 @@ https://your-blewebler-url/?printer=1&width=40&height=12&label=inventory-label&n
 
 ### Printing many labels at once (bulk export)
 
+Don't have to guess the column names: open **Batch Print** and click **"Download CSV Template"** to get a CSV with the header row (and one example row pulled from the current design) matching whatever's tagged with a merge field right now.
+
 **Recommended: download a real CSV file, then upload it.** Have your program generate and download a normal CSV (header row first, one column per merge field, comma-delimited, values matched by header name so column order doesn't matter), then open BleWebler's **Batch Print** modal and use its file upload, it parses and previews automatically the moment a file is selected, no separate button click needed. No URL-length limit, no CORS to configure, nothing sitting in a URL bar or server log, just a plain file. The QR column's value is used verbatim as the QR payload (a bare URL, or any string), it is not built from separate sub-fields.
 
 There's also a `csv` URL parameter (URL-encoded CSV data, header row first) that opens Batch Print pre-loaded and pre-parsed automatically, e.g.:
