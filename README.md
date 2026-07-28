@@ -77,6 +77,19 @@ Either way, once it's running:
 
 To try the live-hosted version instead, see [**Try it here!**](https://josb25.github.io/BleWebler/) above: no local setup needed.
 
+### Releasing a Docker image
+
+Pushing a `vX.Y.Z` git tag triggers `.github/workflows/release.yml`, which builds the `Dockerfile` (plain nginx serving the static files) and pushes it to `ghcr.io/<owner>/<repo>`, tagged with both the version and `latest`.
+
+To cut a release, run `.\release.ps1 patch` (or `./release.sh patch`, or `minor`/`major`/`rc`) from the repo root. There's no `VERSION` file or `package.json` to keep in sync, the version is derived from the latest `vX.Y.Z` git tag, since this is a static site with no build step or npm dependencies to version alongside. The script creates an annotated tag and pushes it; everything else happens in CI.
+
+Once the workflow finishes:
+```bash
+docker pull ghcr.io/<owner>/<repo>:latest
+docker run -d -p 8080:80 ghcr.io/<owner>/<repo>:latest
+```
+Put a reverse proxy with TLS in front of it (Caddy, Nginx, etc.), Web Bluetooth requires a secure context (HTTPS or `localhost`), so plain HTTP over a LAN IP won't work.
+
 ---
 
 ## Linking In From Another App
